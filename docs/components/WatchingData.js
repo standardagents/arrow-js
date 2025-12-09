@@ -38,7 +38,7 @@ export default function () {
       </p>
       <p>
         You can also pass a second function to the <code>w</code> function that
-        serves as a callback for effecting some change. This is called each time
+        serves as a callback for affecting some change. This is called each time
         the watched function is called. Its argument is the value returned by
         the watched function.
       </p>
