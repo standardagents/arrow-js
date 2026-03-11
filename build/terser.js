@@ -35,7 +35,7 @@ let result = await minify(fs.readFileSync(inputFile, 'utf-8'), {
   ecma: '2022',
   sourceMap: {
     content: fs.readFileSync(tsSourceMap, 'utf-8'),
-    url: 'index.min.js.map',
+    url: 'index.min.mjs.map',
   },
 })
 

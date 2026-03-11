@@ -51,7 +51,7 @@
   },
   "size-limit": [
     {
-      "path": "dist/index.mjs",
+      "path": "dist/index.min.mjs",
       "limit": "3 KB",
       "gzip": true
     }
@@ -59,9 +59,23 @@
   "scripts": {
     "dev": "cd docs && vite --config=vite.config.ts",
     "build:docs": "cd docs && vite build --config=vite.config.ts",
-    "build": "npx ts-node ./build/pack.ts && pnpm minify && pnpm size",
-    "test": "vitest",
-    "size": "size-limit",
-    "minify": "node build/terser.js"
+    "build:runtime": "node build/pack.mjs && pnpm minify",
+    "build": "node build/pack.mjs && pnpm minify && pnpm size",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "size": "node build/size.mjs",
+    "size:gzip": "size-limit",
+    "minify": "node build/terser.js",
+    "verify": "pnpm test && pnpm typecheck && pnpm build",
+    "benchmark:setup": "node bench/js-framework-benchmark/setup.mjs",
+    "benchmark:sync": "node bench/js-framework-benchmark/sync.mjs",
+    "benchmark:prepare": "pnpm build && pnpm benchmark:setup && pnpm benchmark:sync",
+    "benchmark:run": "node bench/js-framework-benchmark/run.mjs",
+    "benchmark:smoke": "node bench/js-framework-benchmark/run.mjs --preset smoke --smoketest",
+    "benchmark:core": "node bench/js-framework-benchmark/run.mjs --preset core",
+    "benchmark:targets": "node bench/js-framework-benchmark/run.mjs --preset targets",
+    "benchmark:breadth": "node bench/js-framework-benchmark/run.mjs --preset breadth",
+    "benchmark:report": "node bench/js-framework-benchmark/report.mjs"
   }
 }

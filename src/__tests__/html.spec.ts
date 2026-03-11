@@ -661,6 +661,29 @@ describe('html', () => {
     // </ul>`)
   })
 
+  it('can swap keyed nodes without losing order', async () => {
+    const data = reactive({
+      list: [
+        { name: 'a', id: 1 },
+        { name: 'b', id: 2 },
+        { name: 'c', id: 3 },
+        { name: 'd', id: 4 },
+      ],
+    })
+    const parent = document.createElement('div')
+    html`<ul>
+      ${() =>
+        data.list.map((item: User) => html`<li>${item.name}</li>`.key(item.id))}
+    </ul>`(parent)
+    const before = [...parent.querySelectorAll('li')]
+    data.list = [data.list[0], data.list[2], data.list[1], data.list[3]]
+    await nextTick()
+    const after = [...parent.querySelectorAll('li')]
+    expect(after.map((item) => item.textContent)).toEqual(['a', 'c', 'b', 'd'])
+    expect(after[1]).toBe(before[2])
+    expect(after[2]).toBe(before[1])
+  })
+
   it('can update the values in keyed nodes', async () => {
     const data = reactive({
       list: [

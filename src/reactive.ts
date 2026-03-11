@@ -96,6 +96,10 @@ let watchIndex = 0
  * The current key being tracked.
  */
 let trackKey = 0
+const mutationCache = new WeakMap<
+  ReactiveTarget,
+  Record<PropertyKey, (...args: unknown[]) => unknown>
+>()
 
 /**
  * Array methods that modify the array.
@@ -214,11 +218,21 @@ function trackArray(
   value: unknown
 ) {
   if (arrayMutations.includes(key) && typeof value === 'function') {
-    return (...args: unknown[]) => {
-      const result = value.apply(target, args)
-      parentEmit(id)
-      return result
-    }
+    const cache =
+      mutationCache.get(target) ??
+      (mutationCache.set(target, {}), mutationCache.get(target)!)
+    return (
+      cache[key] ??
+      (cache[key] = (...args: unknown[]) => {
+        const result = Reflect.apply(
+          value as (...args: unknown[]) => unknown,
+          target,
+          args
+        )
+        parentEmit(id)
+        return result
+      })
+    )
   }
   return value
 }
@@ -406,9 +420,11 @@ function startTracking() {
  */
 function stopTracking(watchKey: number, callback: PropertyObserver<unknown>) {
   const key = trackKey--
+  const deps = trackedDependencies[key]
   flushListeners(watchedDependencies[watchKey], callback)
-  addListeners(trackedDependencies[key], callback)
-  watchedDependencies[watchKey] = trackedDependencies[key]
+  addListeners(deps, callback)
+  watchedDependencies[watchKey] = deps
+  trackedDependencies[key] = []
 }
 
 /**
@@ -478,6 +494,7 @@ export function watch<
   }
   const stop = () => {
     flushListeners(watchedDependencies[watchKey], rerun!)
+    watchedDependencies[watchKey] = []
     rerun = null
   }
   if (isPointer) onExpressionUpdate(effect as number, rerun)

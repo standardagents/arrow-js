@@ -13,10 +13,10 @@ const nextTicks: Set<CallableFunction> = new Set()
 /**
  * A map of node types to their respective interfaces.
  */
-interface NodeTypes {
-  [Node.ELEMENT_NODE]: Element
-  [Node.COMMENT_NODE]: Comment
-  [Node.DOCUMENT_FRAGMENT_NODE]: DocumentFragment
+type NodeTypes = {
+  1: Element
+  8: Comment
+  11: DocumentFragment
 }
 
 /**
