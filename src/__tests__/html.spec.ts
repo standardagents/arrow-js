@@ -1034,6 +1034,179 @@ describe('html', () => {
     expect(callback).not.toHaveBeenCalled()
   })
 
+  it('supports falsy memo keys in lists', async () => {
+    const data = reactive({ value: 'a', tick: 0 })
+    const stage = document.createElement('div')
+
+    html`<div>
+      ${() => (data.tick, [html`<span>${data.value}</span>`.memo(0)])}
+    </div>`(stage)
+
+    data.value = 'b'
+    data.tick++
+    await nextTick()
+    expect(stage.textContent?.trim()).toBe('a')
+  })
+
+  it('supports array memo keys in lists', async () => {
+    const data = reactive({ value: 'a', dep: 1, tick: 0 })
+    const stage = document.createElement('div')
+
+    html`<div>
+      ${() => (data.tick, [html`<span>${data.value}</span>`.memo([data.dep])])}
+    </div>`(stage)
+
+    data.value = 'b'
+    data.tick++
+    await nextTick()
+    expect(stage.textContent?.trim()).toBe('a')
+  })
+
+  it('does not reuse memoized nodes across different template shapes', async () => {
+    const data = reactive({ alt: false })
+    const stage = document.createElement('div')
+
+    html`<div>
+      ${() =>
+        data.alt
+          ? html`<span>${'b'}</span>`.memo(1)
+          : html`<strong>${'a'}</strong>`.memo(1)}
+    </div>`(stage)
+
+    expect(stage.innerHTML).toBe('<div>\n      <strong>a</strong>\n    </div>')
+    data.alt = true
+    await nextTick()
+    expect(stage.innerHTML).toBe('<div>\n      <span>b</span>\n    </div>')
+  })
+
+  it('updates plain recalled attributes without reactive attr watchers', async () => {
+    const data = reactive({ state: 'cold', label: 'Alpha' })
+    const stage = document.createElement('div')
+
+    html`<span class="${null}">${null}</span>`.id('badge')()
+    html`<div>
+      ${() =>
+        [html('badge', data.state, data.label).memo([data.state, data.label])]}
+    </div>`(stage)
+
+    expect(stage.innerHTML).toBe('<div>\n      <span class="cold">Alpha</span>\n    </div>')
+    data.state = 'hot'
+    data.label = 'Beta'
+    await nextTick()
+    expect(stage.innerHTML).toBe('<div>\n      <span class="hot">Beta</span>\n    </div>')
+  })
+
+  it('updates shifted recalled list items after removal', async () => {
+    const data = reactive({
+      list: [
+        { id: 1, label: 'one' },
+        { id: 2, label: 'two' },
+        { id: 3, label: 'three' },
+      ],
+    })
+    const stage = document.createElement('div')
+
+    html`<li data-id="${null}">${null}</li>`.id('row')()
+    html`<ul>
+      ${() =>
+        data.list.map((item) =>
+          html('row', item.id, item.label).memo([item.id, item.label])
+        )}
+    </ul>`(stage)
+
+    data.list.splice(0, 1)
+    await nextTick()
+    expect(stage.innerHTML).toBe(
+      '<ul>\n      <li data-id="2">two</li><li data-id="3">three</li>\n    </ul>'
+    )
+  })
+
+  it('reuses pooled recalled nodes after clearing a list', async () => {
+    const data = reactive({ list: ['a', 'b'] as string[] })
+    const stage = document.createElement('div')
+
+    html`<li>${null}</li>`.id('pooled-row')()
+    html`<ul>
+      ${() => data.list.map((item) => html('pooled-row', item).memo([item]).pool())}
+    </ul>`(stage)
+
+    const before = Array.from(stage.querySelectorAll('li'))
+    data.list = []
+    await nextTick()
+    data.list = ['c', 'd']
+    await nextTick()
+    const after = Array.from(stage.querySelectorAll('li'))
+    expect(after.some((node) => node === before[0] || node === before[1])).toBe(
+      true
+    )
+    expect(stage.innerHTML).toBe('<ul>\n      <li>c</li><li>d</li>\n    </ul>')
+  })
+
+  it('reuses memoized recalled nodes after clearing a list', async () => {
+    const data = reactive({ list: ['a', 'b'] as string[] })
+    const stage = document.createElement('div')
+
+    html`<li>${null}</li>`.id('memo-row')()
+    html`<ul>
+      ${() => data.list.map((item) => html('memo-row', item).memo(item))}
+    </ul>`(stage)
+
+    const before = Array.from(stage.querySelectorAll('li'))
+    data.list = []
+    await nextTick()
+    data.list = ['c', 'd']
+    await nextTick()
+    const after = Array.from(stage.querySelectorAll('li'))
+    expect(after.some((node) => node === before[0] || node === before[1])).toBe(
+      true
+    )
+    expect(stage.innerHTML).toBe('<ul>\n      <li>c</li><li>d</li>\n    </ul>')
+  })
+
+  it('updates recalled template instances in place', () => {
+    const stage = document.createElement('div')
+
+    html`<span class="${null}">${null}</span>`.id('badge')()
+    const badge = html('badge', 'cold', 'Alpha')
+    html`<div>${[badge]}</div>`(stage)
+
+    badge.update('hot', 'Beta')
+    expect(stage.innerHTML).toBe('<div><span class="hot">Beta</span></div>')
+  })
+
+  it('recycles a pooled template instance explicitly', () => {
+    const stage = document.createElement('div')
+
+    html`<li>${null}</li>`.id('pooled-item')()
+    const first = html('pooled-item', 'Alpha').pool()
+    first(stage)
+    const before = stage.firstChild
+
+    first.recycle()
+    expect(stage.innerHTML).toBe('')
+
+    const second = html('pooled-item', 'Beta').pool()
+    second(stage)
+
+    expect(stage.firstChild).toBe(before)
+    expect(stage.innerHTML).toBe('<li>Beta</li>')
+  })
+
+  it('adopts a pooled chunk before the next mount', () => {
+    const stage = document.createElement('div')
+
+    html`<li>${null}</li>`.id('adopted-item')()
+    const first = html('adopted-item', 'Alpha').pool()
+    first(stage)
+    const before = stage.firstChild
+    first.recycle()
+
+    const second = html('adopted-item', 'Beta').pool()
+    second(stage)
+    expect(stage.firstChild).toBe(before)
+    expect(stage.innerHTML).toBe('<li>Beta</li>')
+  })
+
   it('can render an empty template', async () => {
     const div = document.createElement('div')
     const store = reactive({ show: true })

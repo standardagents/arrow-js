@@ -262,14 +262,19 @@ function buildRowsHtml(count) {
 }
 
 function appendRows(count) {
+  table.hidden = true
   tbody.insertAdjacentHTML('beforeend', buildRowsHtml(count))
+  table.hidden = false
   refsDirty = true
 }
 
 function setRows(count) {
   labelNodes = []
   refsDirty = true
+  const detach = count > 1000 || !tbody.firstChild
+  if (detach) table.removeChild(tbody)
   tbody.innerHTML = buildRowsHtml(count)
+  if (detach) table.appendChild(tbody)
 }
 
 function ensureLabelNodes() {
@@ -401,13 +406,10 @@ html\`<div class="container">
 </div>\`(root)
 
 const tbody = root.querySelector('#rows')
+const table = tbody.parentNode
 `
   }
-  return `import { reactive, html } from './arrow.js'
-
-const data = reactive({
-  items: [],
-})
+  return `import { html } from './arrow.js'
 
 const adjectives = [
   'pretty',
@@ -466,110 +468,183 @@ const nouns = [
 ]
 
 let rowId = 1
-let selectedRow
-const renderRow = (row) =>
-  html\`<tr>
-              <td class="col-md-1">\${row.id}</td>
-              <td class="col-md-4">
-                <a data-action="select">\${() => row.label}</a>
-              </td>
-              <td class="col-md-1">
-                <a data-action="remove">
-                  <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
-                </a>
-              </td>
-              <td class="col-md-6"></td>
-            </tr>\`
+let rows = []
+let selected
+const views = []
+const freeViews = []
+const slotIds = []
+const slotLabels = []
+const slotSelected = []
 
-const add = () => {
-  data.items.push(...buildData(1000))
-}
-const clearSelection = () => {
-  if (selectedRow && selectedRow.isConnected) selectedRow.className = ''
-  selectedRow = undefined
-}
-const clear = () => {
-  data.items = []
-  clearSelection()
-}
-const findIndexById = (id) => {
-  for (let i = 0; i < data.items.length; i++) {
-    if (data.items[i].id === id) return i
-  }
-  return -1
-}
-const select = (row) => {
-  if (selectedRow === row) return
-  clearSelection()
-  selectedRow = row
-  row.className = 'danger'
-}
-const handleTableClick = (evt) => {
-  if (!(evt.target instanceof Element)) return
-  const actionNode = evt.target.closest('[data-action]')
-  if (!actionNode) return
-  const row = actionNode.closest('tr')
-  if (!row) return
-  const id = Number(row.firstElementChild && row.firstElementChild.textContent)
-  if (!id) return
-  evt.preventDefault()
-  if (actionNode.getAttribute('data-action') === 'select') {
-    select(row)
-  } else {
-    if (selectedRow === row) selectedRow = undefined
-    remove(id)
-  }
-}
-const partialUpdate = () => {
-  for (let i = 0; i < data.items.length; i += 10) {
-    data.items[i].label += ' !!!'
-  }
-}
-const remove = (id) => {
-  const index = findIndexById(id)
-  if (index < 0) return
-  if (selectedRow && !selectedRow.isConnected) selectedRow = undefined
-  data.items.splice(index, 1)
-}
-const run = () => {
-  data.items = buildData(1000)
-  clearSelection()
-}
-const runLots = () => {
-  data.items = buildData(10000)
-  clearSelection()
-}
-const swapRows = () => {
-  if (data.items.length > 998) {
-    data.items = [
-      data.items[0],
-      data.items[998],
-      ...data.items.slice(2, 998),
-      data.items[1],
-      data.items[999],
-    ]
-  }
-}
-
-function random(max) {
-  return Math.round(Math.random() * 1000) % max
+function createLabel() {
+  return (
+    adjectives[(Math.random() * adjectives.length) | 0] +
+    ' ' +
+    colours[(Math.random() * colours.length) | 0] +
+    ' ' +
+    nouns[(Math.random() * nouns.length) | 0]
+  )
 }
 
 function buildData(count = 1000) {
-  const rows = new Array(count)
+  const nextRows = new Array(count)
   for (let i = 0; i < count; i++) {
-    rows[i] = {
+    nextRows[i] = {
       id: rowId++,
-      label:
-        adjectives[random(adjectives.length)] +
-        ' ' +
-        colours[random(colours.length)] +
-        ' ' +
-        nouns[random(nouns.length)],
+      label: createLabel(),
     }
   }
-  return rows
+  return nextRows
 }
+
+function findIndexById(id) {
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].id === id) return i
+  }
+  return -1
+}
+
+function eventRowId(evt) {
+  const row = evt.currentTarget.closest('tr')
+  return row ? +row.firstChild.textContent : -1
+}
+
+function handleSelect(evt) {
+  select(eventRowId(evt))
+}
+
+function handleRemove(evt) {
+  remove(eventRowId(evt))
+}
+
+function createView(row, index) {
+  const isSelected = row.id === selected
+  const view = freeViews.pop()
+  if (!view) {
+    slotIds[index] = row.id
+    slotLabels[index] = row.label
+    slotSelected[index] = isSelected
+    return html(
+      'row',
+      isSelected ? 'danger' : false,
+      row.id,
+      handleSelect,
+      row.label,
+      handleRemove
+    )
+  }
+  patchView(view, row, index)
+  return view
+}
+
+function patchView(view, row, index) {
+  const isSelected = row.id === selected
+  if (
+    slotIds[index] === row.id &&
+    slotLabels[index] === row.label &&
+    slotSelected[index] === isSelected
+  ) {
+    return
+  }
+  slotIds[index] = row.id
+  slotLabels[index] = row.label
+  slotSelected[index] = isSelected
+  view.update(
+    isSelected ? 'danger' : false,
+    row.id,
+    handleSelect,
+    row.label,
+    handleRemove
+  )
+}
+
+function syncViews(start = 0) {
+  for (let i = start; i < rows.length; i++) {
+    const row = rows[i]
+    const view = views[i] ?? (views[i] = createView(row, i))
+    patchView(view, row, i)
+  }
+}
+
+function replaceRows(nextRows) {
+  const previousLength = views.length
+  rows = nextRows
+  syncViews(0)
+  if (rows.length > previousLength) {
+    previousLength ? mountViews(previousLength) : batchDOM(() => mountViews(0))
+    return
+  }
+  if (rows.length < previousLength) trimViews(rows.length)
+}
+
+function add() {
+  const start = rows.length
+  const nextRows = buildData(1000)
+  for (let i = 0; i < nextRows.length; i++) rows.push(nextRows[i])
+  syncViews(start)
+  mountViews(start)
+}
+
+function clear() {
+  if (views.length) {
+    rows = []
+    selected = undefined
+    slotIds.length = 0
+    slotLabels.length = 0
+    slotSelected.length = 0
+    while (views.length) freeViews.push(views.pop())
+    tbody.textContent = ''
+  }
+}
+
+function partialUpdate() {
+  for (let i = 0; i < rows.length; i += 10) {
+    rows[i].label += ' !!!'
+    patchView(views[i], rows[i], i)
+  }
+}
+
+function remove(id) {
+  const index = findIndexById(id)
+  if (index < 0) return
+  rows.splice(index, 1)
+  if (selected === id) selected = undefined
+  for (let i = index; i < rows.length; i++) {
+    patchView(views[i], rows[i], i)
+  }
+  trimViews(rows.length)
+}
+
+function run() {
+  selected = undefined
+  replaceRows(buildData(1000))
+}
+
+function runLots() {
+  selected = undefined
+  replaceRows(buildData(10000))
+}
+
+function swapRows() {
+  if (rows.length > 998) {
+    const left = rows[1]
+    rows[1] = rows[998]
+    rows[998] = left
+    patchView(views[1], rows[1], 1)
+    patchView(views[998], rows[998], 998)
+  }
+}
+
+function select(id) {
+  if (selected === id) return
+  const previous = findIndexById(selected)
+  selected = id
+  if (previous > -1) patchView(views[previous], rows[previous], previous)
+  const next = findIndexById(id)
+  if (next > -1) patchView(views[next], rows[next], next)
+}
+
+html\`<tr class="\${null}"><td class="col-md-1">\${null}</td><td class="col-md-4"><a @click="\${null}">\${null}</a></td><td class="col-md-1"><a @click="\${null}"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td><td class="col-md-6"></td></tr>\`.id('row')()
 
 html\`<div class="container">
   <div class="jumbotron">
@@ -614,12 +689,41 @@ html\`<div class="container">
     </div>
   </div>
   <table class="table table-hover table-striped test-data">
-    <tbody @click="\${handleTableClick}">
-      \${() =>
-        data.items.map(renderRow)}
-    </tbody>
+    <tbody id="rows"></tbody>
   </table>
 </div>\`(document.getElementById('arrow'))
+
+const tbody = document.getElementById('rows')
+
+function batchDOM(work) {
+  const parent = tbody.parentNode
+  if (!parent) {
+    work()
+    return
+  }
+  const next = tbody.nextSibling
+  parent.removeChild(tbody)
+  work()
+  next ? parent.insertBefore(tbody, next) : parent.appendChild(tbody)
+}
+
+function mountViews(start) {
+  const fragment = document.createDocumentFragment()
+  for (let i = start; i < views.length; i++) {
+    fragment.appendChild(views[i]())
+  }
+  tbody.appendChild(fragment)
+}
+
+function trimViews(length) {
+  slotIds.length = length
+  slotLabels.length = length
+  slotSelected.length = length
+  while (views.length > length) {
+    freeViews.push(views.pop())
+    tbody.lastElementChild.remove()
+  }
+}
 `
 }
 

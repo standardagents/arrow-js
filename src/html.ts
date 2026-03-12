@@ -1,8 +1,11 @@
 import { watch } from './reactive'
 import { isChunk, isTpl, isType, queue } from './common'
+import { setAttr } from './dom'
 import {
+  bindExpressionAttr,
+  bindExpressionText,
   expressionPool,
-  onExpressionUpdate,
+  replaceExpressions,
   releaseExpressions,
   storeExpressions,
   updateExpressions,
@@ -38,7 +41,24 @@ export interface ArrowTemplate {
    * @param memoKey - A unique key that identifies this template as "unchanged".
    * @returns
    */
-  memo: (memoKey: ArrowTemplateKey) => ArrowTemplate
+  memo: (memoKey: ArrowMemoKey) => ArrowTemplate
+  /**
+   * Updates this template instance’s expression slots in place.
+   * @param expSlots - The next expression values.
+   * @returns
+   */
+  update: (...expSlots: ArrowExpression[]) => ArrowTemplate
+  /**
+   * Allows a template instance to be recycled after unmount for later reuse.
+   * This is an aggressive optimization intended for repeated same-shape views.
+   * @returns
+   */
+  pool: () => ArrowTemplate
+  /**
+   * Explicitly detaches and recycles this template instance.
+   * @returns
+   */
+  recycle: () => ArrowTemplate
   /**
    * A globally unique identifier for this template. If an explicit id is
    * provided, the template will be stored under that id during memoization and
@@ -68,13 +88,19 @@ export interface ArrowTemplate {
   /**
    * The memo key.
    */
-  _m: ArrowTemplateKey
+  _m: ArrowMemoKey
+  /**
+   * The recycling pool key.
+   */
+  _p?: string
 }
 
 /**
  * The allowed values for arrow keys.
  */
 type ArrowTemplateKey = string | number | undefined
+type ArrowMemoValue = string | number | boolean | null | undefined
+type ArrowMemoKey = ArrowMemoValue | readonly ArrowMemoValue[]
 
 /**
  * Types of return values that can be rendered.
@@ -190,7 +216,7 @@ export interface Chunk {
   /**
    * A memoization key, used for rendering lists.
    */
-  m?: ArrowTemplateKey
+  m?: ArrowMemoKey
   /**
    * An abort controller to terminate all event listeners in this chunk.
    */
@@ -199,6 +225,10 @@ export interface Chunk {
    * Cleanup callbacks for reactive bindings in this chunk.
    */
   u?: Array<() => void> | null
+  /**
+   * Optional recycling pool key for aggressive chunk reuse.
+   */
+  p?: string
 }
 
 /**
@@ -241,18 +271,67 @@ const delimiterComment = `<!--${delimiter}-->`
  */
 const chunkMemo: Record<string, PartialChunk> = {}
 const eventHandlers: Record<string, EventListener> = {}
+const delegatedEvents = new WeakMap<EventTarget, Record<string, 1>>()
+const delegateableEvents: Record<string, 1> = { click: 1 }
+const pooledChunks: Record<string, Chunk[]> = {}
+const pooledChunkLimit = 12000
+let pooledChunkCount = 0
 const releaseTemplateExpressions = Symbol()
 const disposeTemplateState = Symbol()
+const adoptTemplateState = Symbol()
+const orphanTemplateState = Symbol()
+const shapeKey = Symbol()
+const delegatedEventMark = Symbol()
 const renderMark = Symbol()
 
 type Rendered = Chunk | Text | Comment
 type InternalTemplate = ArrowTemplate & {
   [releaseTemplateExpressions]: () => void
   [disposeTemplateState]: () => void
+  [adoptTemplateState]: (nextChunk: Chunk, nextPointer: number) => void
+  [orphanTemplateState]: () => void
+  [shapeKey]: string
 }
+type InternalChunk = Chunk & { [shapeKey]?: string }
 
 function releaseTemplate(template: ArrowTemplate) {
   ;(template as InternalTemplate)[releaseTemplateExpressions]?.()
+}
+
+function takePooledChunk(poolKey: string | undefined) {
+  if (!poolKey) return
+  const pool = pooledChunks[poolKey]
+  if (!pool?.length) return
+  pooledChunkCount--
+  return pool.pop()
+}
+
+function poolChunk(chunk: Chunk) {
+  const poolKey = chunk.p
+  if (chunk.ref.f?.parentNode === chunk.dom) return true
+  if (
+    !poolKey ||
+    chunk.k !== undefined ||
+    chunk.u ||
+    chunk.a ||
+    pooledChunkCount >= pooledChunkLimit
+  ) {
+    return false
+  }
+  appendDOMRef(chunk.ref, chunk.dom)
+  ;(pooledChunks[poolKey] ??= []).push(chunk)
+  pooledChunkCount++
+  return true
+}
+
+function sameMemo(left: ArrowMemoKey, right: ArrowMemoKey | undefined) {
+  if (left === right) return true
+  if (!Array.isArray(left) || !Array.isArray(right)) return false
+  if (left.length !== right.length) return false
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false
+  }
+  return true
 }
 
 function createDOMRef(dom: DocumentFragment): DOMRef {
@@ -366,6 +445,8 @@ export function html(
 ): ArrowTemplate {
   let chunk: Chunk | undefined
   let memoId: string | null = null
+  const poolKey =
+    typeof strings === 'string' ? strings : strings.join(delimiterComment)
   let expressionPointer = storeExpressions(expSlots)
   if (!Array.isArray(strings)) {
     memoId = strings as string
@@ -388,6 +469,8 @@ export function html(
       chunk._t = template
       chunk.k = template._k
       chunk.m = template._m
+      chunk.p = template._p
+      ;(chunk as InternalChunk)[shapeKey] = template[shapeKey]
     }
     return chunk
   }
@@ -415,13 +498,57 @@ export function html(
     template._k = key
     return template
   }
-  template.memo = (key: ArrowTemplateKey): ArrowTemplate => {
+  template.memo = (key: ArrowMemoKey): ArrowTemplate => {
     template._m = key
-    chunk && (chunk.m = key)
+    if (template._p === undefined) template._p = template[shapeKey]
+    if (chunk) {
+      chunk.m = key
+      chunk.p = template._p
+    }
+    return template
+  }
+  template.update = (...newExpSlots: ArrowExpression[]): ArrowTemplate => {
+    replaceExpressions(getExpressionPointer(), newExpSlots)
+    return template
+  }
+  template.pool = (): ArrowTemplate => {
+    template._p = memoId ?? poolKey
+    if (chunk) {
+      chunk.p = template._p
+      return template
+    }
+    const pooled = takePooledChunk(template._p)
+    if (!pooled) return template
+    const pooledPointer = pooled._t._e
+    updateExpressions(getExpressionPointer(), pooledPointer)
+    template[releaseTemplateExpressions]()
+    ;(pooled._t as InternalTemplate)[orphanTemplateState]()
+    template[adoptTemplateState](pooled, pooledPointer)
+    pooled._t = template
+    pooled.k = template._k
+    pooled.m = template._m
+    pooled.p = template._p
+    return template
+  }
+  template.recycle = (): ArrowTemplate => {
+    if (!chunk || !hasMounted) return template
+    if (poolChunk(chunk)) return template
+    if (chunk.u) {
+      for (let i = 0; i < chunk.u.length; i++) chunk.u[i]()
+      chunk.u = null
+    }
+    removeDOMRef(chunk.ref)
+    if (chunk.a) {
+      chunk.a.abort()
+      chunk.a = null
+    }
+    template[disposeTemplateState]()
     return template
   }
   template.id = (id: string): ArrowTemplate => {
     memoId = id
+    if (template._p) template._p = id
+    chunk && template._p && (chunk.p = template._p)
     return template
   }
   template[releaseTemplateExpressions] = () => {
@@ -435,6 +562,17 @@ export function html(
     chunk = undefined
     template[releaseTemplateExpressions]()
   }
+  template[adoptTemplateState] = (nextChunk: Chunk, nextPointer: number) => {
+    chunk = nextChunk
+    expressionPointer = nextPointer
+    hasMounted = true
+  }
+  template[orphanTemplateState] = () => {
+    hasMounted = false
+    chunk = undefined
+    expressionPointer = -1
+  }
+  template[shapeKey] = memoId ?? poolKey
   Object.defineProperty(template, '_e', {
     configurable: true,
     get: getExpressionPointer,
@@ -520,14 +658,7 @@ function createNodeBinding(
     fragment = isEmpty(expression)
       ? document.createComment('')
       : document.createTextNode(expression as string)
-    // TODO: we need to add a way to swap between comments and text nodes when
-    // expressions are updated.
-    onExpressionUpdate(
-      expressionPointer,
-      (value: string) => {
-        if (fragment.nodeValue != value) fragment.nodeValue = value
-      }
-    )
+    bindExpressionText(expressionPointer, fragment)
   }
   updateChunkRef(parentChunk, node, fragment)
   node.parentNode?.replaceChild(fragment, node)
@@ -569,6 +700,41 @@ function createScalarRenderFn(
   }
 }
 
+function dispatchDelegatedEvent(this: EventTarget, evt: Event) {
+  if ((evt as Event & { [delegatedEventMark]?: 1 })[delegatedEventMark]) return
+  ;(evt as Event & { [delegatedEventMark]?: 1 })[delegatedEventMark] = 1
+  const attrName = `@${evt.type}`
+  const root = this as Node | null
+  let node = evt.target as Node | null
+  while (node) {
+    const pointer = (node as unknown as Record<string, number | undefined>)[
+      attrName
+    ]
+    if (pointer !== undefined) {
+      ;(expressionPool[pointer] as CallableFunction)?.(evt)
+      if (evt.cancelBubble) return
+    }
+    if (node === root) return
+    node = node.parentNode
+  }
+}
+
+function delegateEvent(event: string, parentChunk: Chunk) {
+  if (!(event in delegateableEvents)) return false
+  const root = parentChunk.ref.f
+  if (!root || !isType(root, 1)) return false
+  let events = delegatedEvents.get(root)
+  if (!events) {
+    events = {}
+    delegatedEvents.set(root, events)
+  }
+  if (!events[event]) {
+    root.addEventListener(event, dispatchDelegatedEvent)
+    events[event] = 1
+  }
+  return true
+}
+
 /**
  *
  * @param node -
@@ -584,18 +750,20 @@ function createAttrBinding(
   const expression = expressionPool[expressionPointer]
   if (attrName[0] === '@') {
     const event = attrName.substring(1)
-    const handler =
-      eventHandlers[attrName] ??
-      (eventHandlers[attrName] = function (this: EventTarget, evt: Event) {
-        ;(
-          expressionPool[
-            (this as EventTarget & Record<string, number>)[attrName]
-          ] as CallableFunction
-        )?.(evt)
-      })
-    if (!parentChunk.a) parentChunk.a = new AbortController()
     ;(node as Element & Record<string, number>)[attrName] = expressionPointer
-    node.addEventListener(event, handler, { signal: parentChunk.a.signal })
+    if (!delegateEvent(event, parentChunk)) {
+      const handler =
+        eventHandlers[attrName] ??
+        (eventHandlers[attrName] = function (this: EventTarget, evt: Event) {
+          ;(
+            expressionPool[
+              (this as EventTarget & Record<string, number>)[attrName]
+            ] as CallableFunction
+          )?.(evt)
+        })
+      if (!parentChunk.a) parentChunk.a = new AbortController()
+      node.addEventListener(event, handler, { signal: parentChunk.a.signal })
+    }
     node.removeAttribute(attrName)
   } else if (typeof expression === 'function' && !isTpl(expression)) {
     // We are dealing with a reactive expression so perform watch binding.
@@ -605,42 +773,8 @@ function createAttrBinding(
     addCleanup(parentChunk, stop)
   } else {
     setAttr(node, attrName, expression as string | number | boolean | null)
+    bindExpressionAttr(expressionPointer, node as Element, attrName)
   }
-}
-
-/**
- * Sets the value of an attribute on an element.
- * @param node - An html element for whom we need to set an attr.
- * @param attrName - The name of the attribute.
- * @param value - The value of the attribute.
- */
-function setAttr(
-  node: Element,
-  attrName: string,
-  value: string | number | boolean | null
-) {
-  // Logic to determine if this is an IDL attribute or a content attribute
-  const isIDL =
-    (attrName === 'value' && 'value' in node) ||
-    attrName === 'checked' ||
-    (attrName.startsWith('.') && (attrName = attrName.substring(1)))
-  if (isIDL) {
-    // Handle all IDL attributes, TS won’t like this since it is not
-    // fully aware of the type we are operating on, but JavaScript is
-    // perfectly fine with it, so we need to ignore TS here.
-    // @ts-ignore:next-line
-    node[attrName as 'value'] = value
-    // Explicitly set the "value" to false remove the attribute. However
-    // we need to be sure this is not a "Reflected" attribute, so we check
-    // the current value of the attribute to make sure it is not the same
-    // as the value we just set. If it is the same, it must be reflected.
-    // so removing the attribute would remove the idl we just set.
-    if (node.getAttribute(attrName) != value) value = false
-  }
-  // Set a standard content attribute.
-  value !== false
-    ? node.setAttribute(attrName, value as string)
-    : node.removeAttribute(attrName)
 }
 
 /**
@@ -761,7 +895,7 @@ function createRenderFn(): (
               const keyedChunk = keyedChunks[key]
               // This is a keyed item, so update the expressions and then
               // used the keyed chunk instead.
-              if (item._m !== undefined && item._m === keyedChunk.m) {
+              if (item._m !== undefined && sameMemo(item._m, keyedChunk.m)) {
                 if (keyedChunk._t !== item) releaseTemplate(item)
               } else {
                 updateExpressions(item._e, keyedChunk._t._e)
@@ -848,7 +982,29 @@ function createRenderFn(): (
         (prev as Text).data = renderable as string
       return prev
     } else if (isTpl(renderable)) {
-      if (renderable._m && isChunk(prev) && renderable._m === prev.m) {
+      if (
+        renderable._k === undefined &&
+        isChunk(prev) &&
+        (prev as InternalChunk)[shapeKey] ===
+          (renderable as InternalTemplate)[shapeKey]
+      ) {
+        if (renderable._m !== undefined && sameMemo(renderable._m, prev.m)) {
+          if (renderable !== prev._t) releaseTemplate(renderable)
+          return prev
+        }
+        updateExpressions(renderable._e, prev._t._e)
+        prev._t.memo(renderable._m)
+        if (renderable !== prev._t) releaseTemplate(renderable)
+        return prev
+      }
+      if (
+        renderable._m !== undefined &&
+        isChunk(prev) &&
+        prev.k === renderable._k &&
+        (prev as InternalChunk)[shapeKey] ===
+          (renderable as InternalTemplate)[shapeKey] &&
+        sameMemo(renderable._m, prev.m)
+      ) {
         if (renderable !== prev._t) releaseTemplate(renderable)
         return prev
       }
@@ -867,7 +1023,7 @@ function createRenderFn(): (
         // This is a template that has already been rendered, so we only need to
         // update the expressions
         updateExpressions(chunk._t._e, prev._t._e)
-        chunk.m && prev._t.memo(chunk.m)
+        chunk.m !== undefined && prev._t.memo(chunk.m)
         if (chunk._t !== prev._t) releaseTemplate(chunk._t)
         return prev
       }
@@ -904,6 +1060,20 @@ function createRenderFn(): (
     fragment: DocumentFragment
   ): Rendered {
     if (isTpl(item)) {
+      const pooled = takePooledChunk(item._p)
+      if (pooled) {
+        updateExpressions(item._e, pooled._t._e)
+        pooled._t._k = item._k
+        pooled._t._m = item._m
+        pooled._t._p = item._p
+        pooled.k = item._k
+        pooled.m = item._m
+        pooled.p = item._p
+        appendDOMRef(pooled.ref, fragment)
+        if (pooled._t !== item) releaseTemplate(item)
+        if (pooled.k !== undefined) keyedChunks[pooled.k] = pooled
+        return pooled
+      }
       fragment.appendChild(item())
       const chunk = item._c()
       if (chunk.k !== undefined) keyedChunks[chunk.k] = chunk
@@ -917,7 +1087,7 @@ function createRenderFn(): (
   }
 
   function reuseKeyed(item: ArrowTemplate, keyedChunk: Chunk): Chunk {
-    if (item._m !== undefined && item._m === keyedChunk.m) {
+    if (item._m !== undefined && sameMemo(item._m, keyedChunk.m)) {
       if (keyedChunk._t !== item) releaseTemplate(item)
     } else {
       updateExpressions(item._e, keyedChunk._t._e)
@@ -986,6 +1156,7 @@ const queueUnmount = queue(() => {
       | Array<Chunk | Text | ChildNode>
   ) => {
     if (isChunk(chunk)) {
+      if (poolChunk(chunk)) return
       if (chunk.u) {
         for (let i = 0; i < chunk.u.length; i++) chunk.u[i]()
         chunk.u = null

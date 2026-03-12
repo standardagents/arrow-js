@@ -1,7 +1,11 @@
+import { setAttr } from './dom'
 import { ArrowExpression } from './html'
 
 export const expressionPool: Array<number | ArrowExpression> = []
 const expressionObservers: CallableFunction[] = []
+const textBindings: Array<Text | Comment> = []
+const attrBindings: Element[] = []
+const attrBindingNames: string[] = []
 const freeExpressionPointers: number[][] = []
 let cursor = 0
 
@@ -36,9 +40,17 @@ export function updateExpressions(
   if (sourcePointer === toPointer) return
   const len = expressionPool[sourcePointer] as number
   for (let i = 1; i <= len; i++) {
-    const value = expressionPool[sourcePointer + i]
-    expressionPool[toPointer + i] = value
-    expressionObservers[toPointer + i]?.(value)
+    writeExpression(toPointer + i, expressionPool[sourcePointer + i] as ArrowExpression)
+  }
+}
+
+export function replaceExpressions(
+  pointer: number,
+  expSlots: ArrowExpression[]
+): void {
+  const len = expressionPool[pointer] as number
+  for (let i = 0; i < len; i++) {
+    writeExpression(pointer + i + 1, expSlots[i])
   }
 }
 
@@ -54,6 +66,41 @@ export function onExpressionUpdate(
   expressionObservers[pointer] = observer
 }
 
+export function bindExpressionText(pointer: number, node: Text | Comment): void {
+  textBindings[pointer] = node
+}
+
+export function bindExpressionAttr(
+  pointer: number,
+  node: Element,
+  attrName: string
+): void {
+  attrBindings[pointer] = node
+  attrBindingNames[pointer] = attrName
+}
+
+function writeExpression(pointer: number, value: ArrowExpression): void {
+  expressionPool[pointer] = value
+  const observer = expressionObservers[pointer]
+  if (observer) {
+    observer(value)
+    return
+  }
+  const text = textBindings[pointer]
+  if (text) {
+    if (text.nodeValue != value) text.nodeValue = value as string
+    return
+  }
+  const attr = attrBindings[pointer]
+  if (attr) {
+    setAttr(
+      attr,
+      attrBindingNames[pointer],
+      value as string | number | boolean | null
+    )
+  }
+}
+
 /**
  * Releases a pointer back into the expression free list for exact-size reuse.
  * This is only safe for template instances that never bound DOM observers.
@@ -65,6 +112,9 @@ export function releaseExpressions(pointer: number): void {
   for (let i = 0; i <= len; i++) {
     delete expressionPool[pointer + i]
     delete expressionObservers[pointer + i]
+    delete textBindings[pointer + i]
+    delete attrBindings[pointer + i]
+    delete attrBindingNames[pointer + i]
   }
   ;(freeExpressionPointers[len] ??= []).push(pointer)
 }

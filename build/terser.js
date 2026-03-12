@@ -26,7 +26,7 @@ let result = await minify(fs.readFileSync(inputFile, 'utf-8'), {
       // 'html',
     ],
     properties: {
-      reserved: ['$on', '$off', 'key', 'memo'],
+      reserved: ['$on', '$off', 'key', 'memo', 'pool', 'recycle', 'update'],
     },
   },
   compress: {
@@ -64,6 +64,9 @@ let iifeResult = await minify(fs.readFileSync(iifeInputFile, 'utf-8'), {
       '_em',
       'key',
       'memo',
+      'pool',
+      'recycle',
+      'update',
       't',
       'r',
       'w',
