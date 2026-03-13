@@ -29,6 +29,8 @@ export default defineConfig({
         demos_dropdowns: resolve(__dirname, 'demos/dropdowns.html'),
         demos_fast_text: resolve(__dirname, 'demos/fast-text.html'),
         demos_tabs: resolve(__dirname, 'demos/tabs.html'),
+        play: resolve(__dirname, 'play/index.html'),
+        play_preview: resolve(__dirname, 'play/preview.html'),
       },
       output: {
         dir: resolve(__dirname, '../public'),

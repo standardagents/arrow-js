@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #f8f6ef;
+        color: #161616;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #171717;
+          color: #f2f2f2;
+        }
+      }
+      #app {
+        min-height: 100vh;
+      }
+      #runtime-error {
+        display: none;
+        margin: 0;
+        padding: 16px;
+        border-bottom: 1px solid rgba(191, 68, 68, 0.3);
+        background: rgba(191, 68, 68, 0.12);
+        color: #8f2020;
+        white-space: pre-wrap;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, monospace;
+      }
+      #runtime-error[data-active='true'] {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <pre id="runtime-error" data-active="false"></pre>
+    <div id="app"></div>
+    <script type="importmap">
+      {
+        "imports": {
+          "@arrow-js/core": "/play/arrow-runtime.js"
+        }
+      }
+    </script>
+    <script type="module" src="./preview.js"></script>
+  </body>
+</html>
