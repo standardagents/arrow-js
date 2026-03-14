@@ -233,6 +233,34 @@
   background: #fff;
 }
 
+.monaco-editor .play-html-comment,
+.monaco-editor .play-html-comment * {
+  color: #6b7280 !important;
+  font-style: italic;
+}
+
+.monaco-editor .play-html-delimiter,
+.monaco-editor .play-html-delimiter *,
+.monaco-editor .play-html-meta {
+  color: #b2442d !important;
+}
+
+.monaco-editor .play-html-meta *,
+.monaco-editor .play-html-tag,
+.monaco-editor .play-html-tag * {
+  color: #a12f26 !important;
+}
+
+.monaco-editor .play-html-attr-name,
+.monaco-editor .play-html-attr-name * {
+  color: #7a5a14 !important;
+}
+
+.monaco-editor .play-html-attr-value,
+.monaco-editor .play-html-attr-value * {
+  color: #176e85 !important;
+}
+
 @media (prefers-color-scheme: dark) {
   .play-shell {
     --play-border: rgba(255, 255, 255, 0.12);
@@ -253,6 +281,54 @@
   .play-explorer {
     background: rgba(12, 14, 17, 0.96);
   }
+
+  .monaco-editor .play-html-comment,
+  .monaco-editor .play-html-comment * {
+    color: #7e8794 !important;
+  }
+
+  .monaco-editor .play-html-delimiter,
+  .monaco-editor .play-html-delimiter *,
+  .monaco-editor .play-html-meta,
+  .monaco-editor .play-html-meta *,
+  .monaco-editor .play-html-tag {
+    color: #e06c75 !important;
+  }
+
+  .monaco-editor .play-html-tag *,
+  .monaco-editor .play-html-attr-name,
+  .monaco-editor .play-html-attr-name * {
+    color: #d19a66 !important;
+  }
+
+  .monaco-editor .play-html-attr-value,
+  .monaco-editor .play-html-attr-value * {
+    color: #56b6c2 !important;
+  }
+}
+
+html[data-theme='dark'] .monaco-editor .play-html-comment,
+html[data-theme='dark'] .monaco-editor .play-html-comment * {
+  color: #7e8794 !important;
+}
+
+html[data-theme='dark'] .monaco-editor .play-html-delimiter,
+html[data-theme='dark'] .monaco-editor .play-html-delimiter *,
+html[data-theme='dark'] .monaco-editor .play-html-meta,
+html[data-theme='dark'] .monaco-editor .play-html-meta *,
+html[data-theme='dark'] .monaco-editor .play-html-tag {
+  color: #e06c75 !important;
+}
+
+html[data-theme='dark'] .monaco-editor .play-html-tag *,
+html[data-theme='dark'] .monaco-editor .play-html-attr-name,
+html[data-theme='dark'] .monaco-editor .play-html-attr-name * {
+  color: #d19a66 !important;
+}
+
+html[data-theme='dark'] .monaco-editor .play-html-attr-value,
+html[data-theme='dark'] .monaco-editor .play-html-attr-value * {
+  color: #56b6c2 !important;
 }
 
 @media (max-width: 1080px) {
