@@ -9,43 +9,46 @@ export const playgroundExampleMeta = [
     description: 'A compact multi-file starter with shared state and a local component.',
   },
   {
-    id: 'calculator',
-    title: 'Calculator',
-    description: 'A polished calculator split into display and keypad components.',
-    sourceUrl: `${examplesBaseUrl}/calculator`,
-  },
-  {
-    id: 'performance',
-    title: 'Performance',
+    id: 'todo',
+    title: 'Todo List',
     description:
-      'A live data board with componentized rows and reactive throughput stats.',
-    sourceUrl: `${examplesBaseUrl}/performance`,
+      'A task tracker with reactive arrays, keyed lists, and computed filtering.',
+    sourceUrl: `${examplesBaseUrl}/todo`,
   },
   {
-    id: 'component-stability',
-    title: 'Component Stability',
+    id: 'timer',
+    title: 'Pomodoro Timer',
     description:
-      'A nested state lab showing what survives parent rerenders and what resets on unmount.',
-    sourceUrl: `${examplesBaseUrl}/component-stability`,
+      'A focus timer with SVG progress ring, intervals, and computed formatting.',
+    sourceUrl: `${examplesBaseUrl}/timer`,
   },
   {
-    id: 'dropdowns',
-    title: 'Dropdowns',
+    id: 'palette',
+    title: 'Color Palette',
     description:
-      'A small UI library example with reusable dropdown and card components.',
-    sourceUrl: `${examplesBaseUrl}/dropdowns`,
+      'A Coolors-style harmony palette generator with reactive style binding and computed colors.',
+    sourceUrl: `${examplesBaseUrl}/palette`,
   },
   {
-    id: 'carousel',
-    title: 'Carousel',
-    description: 'A media carousel with thumbnail navigation and a details panel.',
-    sourceUrl: `${examplesBaseUrl}/carousel`,
+    id: 'password',
+    title: 'Password Generator',
+    description:
+      'A configurable password tool with reactive toggles and a strength meter.',
+    sourceUrl: `${examplesBaseUrl}/password`,
   },
   {
-    id: 'tabs',
-    title: 'Tabs',
-    description: 'A tabbed workspace composed from focused button and panel components.',
-    sourceUrl: `${examplesBaseUrl}/tabs`,
+    id: 'accordion',
+    title: 'Accordion',
+    description:
+      'Expandable FAQ sections where each component instance keeps its own state.',
+    sourceUrl: `${examplesBaseUrl}/accordion`,
+  },
+  {
+    id: 'feed',
+    title: 'Live Feed',
+    description:
+      'An auto-updating event feed with reactive array mutations and timed entries.',
+    sourceUrl: `${examplesBaseUrl}/feed`,
   },
 ]
 

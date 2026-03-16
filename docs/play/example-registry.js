@@ -48,46 +48,40 @@ export const playgroundExamples = [
     'CounterPanel.ts',
     'styles.css',
   ]),
-  createExampleFromDir('calculator', [
+  createExampleFromDir('todo', [
     ENTRY_FILE,
-    'CalculatorApp.ts',
-    'CalculatorDisplay.ts',
-    'Keypad.ts',
+    'TodoApp.ts',
+    'TodoItem.ts',
     'styles.css',
   ]),
-  createExampleFromDir('performance', [
+  createExampleFromDir('timer', [
     ENTRY_FILE,
-    'PerformanceBoard.ts',
-    'FeedStats.ts',
-    'TickerRow.ts',
+    'TimerApp.ts',
+    'TimerRing.ts',
     'styles.css',
   ]),
-  createExampleFromDir('component-stability', [
+  createExampleFromDir('palette', [
     ENTRY_FILE,
-    'StabilityLab.ts',
-    'StableCounter.ts',
-    'FrameCard.ts',
+    'PaletteApp.ts',
+    'Swatch.ts',
     'styles.css',
   ]),
-  createExampleFromDir('dropdowns', [
+  createExampleFromDir('password', [
     ENTRY_FILE,
-    'Dropdown.ts',
-    'DropdownGallery.ts',
-    'FieldCard.ts',
+    'GeneratorApp.ts',
+    'StrengthMeter.ts',
     'styles.css',
   ]),
-  createExampleFromDir('carousel', [
+  createExampleFromDir('accordion', [
     ENTRY_FILE,
-    'GalleryApp.ts',
-    'Carousel.ts',
-    'ThumbnailRail.ts',
-    'slides.ts',
+    'AccordionApp.ts',
+    'AccordionItem.ts',
     'styles.css',
   ]),
-  createExampleFromDir('tabs', [
+  createExampleFromDir('feed', [
     ENTRY_FILE,
-    'TabsDemo.ts',
-    'TabButton.ts',
+    'FeedApp.ts',
+    'FeedCard.ts',
     'styles.css',
   ]),
 ]

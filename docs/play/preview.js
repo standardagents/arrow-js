@@ -114,7 +114,14 @@ window.addEventListener('unhandledrejection', (event) => {
 
 window.addEventListener('message', (event) => {
   const data = event.data
-  if (!data || data.source !== 'arrow-play-host' || data.type !== 'run') return
+  if (!data || data.source !== 'arrow-play-host') return
+
+  if (data.type === 'theme') {
+    document.documentElement.dataset.theme = data.theme || 'light'
+    return
+  }
+
+  if (data.type !== 'run') return
 
   const currentRun = ++runId
   reset()

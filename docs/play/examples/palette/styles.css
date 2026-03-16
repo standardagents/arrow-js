@@ -1,0 +1,124 @@
+.pal {
+  --bg: #f8fafc;
+  --bar: #fff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --btn: #f1f5f9;
+  --btn-hover: #e2e8f0;
+  --active: #e2e8f0;
+
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font: 14px/1.5 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+html[data-theme='dark'] .pal {
+  --bg: #111;
+  --bar: #1a1a2e;
+  --text: #fff;
+  --muted: rgba(255, 255, 255, 0.45);
+  --border: rgba(255, 255, 255, 0.06);
+  --btn: rgba(255, 255, 255, 0.1);
+  --btn-hover: rgba(255, 255, 255, 0.16);
+  --active: rgba(255, 255, 255, 0.12);
+}
+
+.pal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bar);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.pal-modes { display: flex; gap: 4px; }
+
+.pal-mode {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  transition: color 150ms, background 150ms;
+}
+
+.pal-mode:hover {
+  color: var(--text);
+  background: var(--btn);
+}
+
+.pal-mode--on {
+  background: var(--active);
+  color: var(--text);
+}
+
+.pal-gen {
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--btn);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 150ms;
+}
+
+.pal-gen:hover { background: var(--btn-hover); }
+
+.pal-gen kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--btn);
+  font-size: 11px;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.pal-strip {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.pal-swatch {
+  flex: 1;
+  border: 0;
+  padding: 0 0 40px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 350ms ease, flex 200ms ease;
+  font: inherit;
+}
+
+.pal-swatch:hover { flex: 1.4; }
+
+.pal-hex {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  transition: opacity 150ms;
+}
+
+.pal-swatch:hover .pal-hex { opacity: 1; }

@@ -5,8 +5,8 @@
     "packages/**/*.js",
     "docs/**/*.ts",
     "docs/**/*.js",
-    "docs-meta/**/*.ts",
-    "docs-meta/**/*.js",
+    "docs/**/*.ts",
+    "docs/**/*.js",
     "playwright.config.ts",
     "vitest.config.ts"
   ],
@@ -14,7 +14,7 @@
     "node_modules",
     "packages/**/dist",
     "docs/dist",
-    "docs-meta/dist",
+    "docs/dist",
     "packages/core/src/html2.ts"
   ]
 }

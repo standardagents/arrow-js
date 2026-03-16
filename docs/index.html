@@ -1,26 +1,32 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" type="text/css" href="/css/index.css" />
-    <link rel="stylesheet" type="text/css" href="/css/home.css" />
-    <script
-      src="https://stirring-harmonious.arrow-js.com/script.js"
-      data-site="NPEEWMAQ"
-      defer
-    ></script>
-    <meta
-      name="description"
-      content="ArrowJS is a tool for programming reactive interfaces using native JavaScript. It’s tiny, requires no build tools, has no virtual DOM, and is blazing fast."
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
     />
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('arrow-theme')
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.setAttribute('data-theme', stored)
+          } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+            document.documentElement.setAttribute('data-theme', 'light')
+          }
+        } catch (e) {}
+      })()
+    </script>
     <!--app-head-->
+    <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
-  <body>
+  <body class="bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased">
     <div id="app"><!--app-html--></div>
     <!--app-payload-->
-    <script type="module" src="/src/entry-client.js"></script>
-    <script async defer src="https://buttons.github.io/buttons.js"></script>
+    <script type="module" src="/src/entry-client.ts"></script>
   </body>
 </html>

@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
-    "build": "vite build && vite build --ssr src/entry-server.js",
+    "build": "vite build --app",
     "preview": "NODE_ENV=production node server.mjs"
   },
   "dependencies": {
@@ -14,7 +14,13 @@
     "@arrow-js/ssr": "workspace:*",
     "@arrow-js/vite-plugin-arrow": "workspace:*",
     "@shikijs/twoslash": "^4.0.2",
+    "matter-js": "^0.20.0",
     "shiki": "^4.0.2",
     "twoslash-cdn": "^0.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/matter-js": "^0.20.2",
+    "tailwindcss": "^4.2.1"
   }
 }

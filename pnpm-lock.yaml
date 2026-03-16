@@ -80,33 +80,6 @@ importers:
       '@shikijs/twoslash':
         specifier: ^4.0.2
         version: 4.0.2(typescript@5.9.3)
-      shiki:
-        specifier: ^4.0.2
-        version: 4.0.2
-      twoslash-cdn:
-        specifier: ^0.3.6
-        version: 0.3.6(typescript@5.9.3)
-
-  docs-meta:
-    dependencies:
-      '@arrow-js/core':
-        specifier: workspace:*
-        version: link:../packages/core
-      '@arrow-js/framework':
-        specifier: workspace:*
-        version: link:../packages/framework
-      '@arrow-js/hydrate':
-        specifier: workspace:*
-        version: link:../packages/hydrate
-      '@arrow-js/ssr':
-        specifier: workspace:*
-        version: link:../packages/ssr
-      '@arrow-js/vite-plugin-arrow':
-        specifier: workspace:*
-        version: link:../packages/vite-plugin-arrow
-      '@shikijs/twoslash':
-        specifier: ^4.0.2
-        version: 4.0.2(typescript@5.9.3)
       matter-js:
         specifier: ^0.20.0
         version: 0.20.0

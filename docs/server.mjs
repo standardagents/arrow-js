@@ -6,8 +6,7 @@ import { createServer as createViteServer } from 'vite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isProduction = process.env.NODE_ENV === 'production'
-const port = Number(process.env.PORT ?? 4173)
-let vite = null
+const port = Number(process.env.PORT ?? 4174)
 
 const templatePath = path.resolve(__dirname, 'index.html')
 const clientDistPath = path.resolve(__dirname, 'dist/client')
@@ -16,19 +15,27 @@ const playgroundRuntimePath = path.resolve(
   __dirname,
   '../packages/core/dist/index.mjs'
 )
+
 const htmlEntryRedirects = new Map([
-  ['/benchmarks', '/benchmarks/'],
   ['/play', '/play/'],
   ['/play/preview', '/play/preview.html'],
   ['/play/preview/', '/play/preview.html'],
 ])
+
+/** Routes that serve dynamically-generated plain text / markdown. */
+const textRoutes = new Map([
+  ['/docs.md', { render: 'markdown', url: '/' }],
+  ['/api.md', { render: 'markdown', url: '/api' }],
+  ['/llms.txt', { render: 'llms' }],
+])
+
 const devHtmlEntries = new Map([
-  ['/benchmarks/', path.resolve(__dirname, 'benchmarks/index.html')],
-  ['/benchmarks/index.html', path.resolve(__dirname, 'benchmarks/index.html')],
   ['/play/', path.resolve(__dirname, 'play/index.html')],
   ['/play/index.html', path.resolve(__dirname, 'play/index.html')],
   ['/play/preview.html', path.resolve(__dirname, 'play/preview.html')],
 ])
+
+let vite = null
 
 const server = http.createServer(async (request, response) => {
   const url = request.url ?? '/'
@@ -39,6 +46,12 @@ const server = http.createServer(async (request, response) => {
     if (redirectTarget) {
       response.writeHead(302, { Location: redirectTarget })
       response.end()
+      return
+    }
+
+    const textRoute = resolveTextRoute(url)
+    if (textRoute) {
+      await serveTextRoute(textRoute, request, response)
       return
     }
 
@@ -69,16 +82,13 @@ const server = http.createServer(async (request, response) => {
     }
 
     const staticFile = await resolveStaticFile(url)
-
     if (staticFile) {
       await serveStaticAsset(staticFile, response)
       return
     }
 
     if (!isDocumentRequest(request)) {
-      response.writeHead(404, {
-        'Content-Type': 'text/plain',
-      })
+      response.writeHead(404, { 'Content-Type': 'text/plain' })
       response.end('Not found')
       return
     }
@@ -92,7 +102,9 @@ const server = http.createServer(async (request, response) => {
     } else {
       template = await fs.readFile(templatePath, 'utf8')
       template = await vite.transformIndexHtml(url, template)
-      ;({ renderPage } = await vite.ssrLoadModule('/src/entry-server.js'))
+      ;({ renderPage } = await vite.environments.ssr.runner.import(
+        '/src/entry-server.ts'
+      ))
     }
 
     const page = await renderPage(url)
@@ -101,18 +113,12 @@ const server = http.createServer(async (request, response) => {
       .replace('<!--app-html-->', page.html)
       .replace('<!--app-payload-->', page.payloadScript ?? '')
 
-    response.writeHead(page.status, {
+    response.writeHead(page.status ?? 200, {
       'Content-Type': 'text/html',
     })
     response.end(html)
   } catch (error) {
-    if (vite) {
-      vite.ssrFixStacktrace(error)
-    }
-
-    response.writeHead(500, {
-      'Content-Type': 'text/plain',
-    })
+    response.writeHead(500, { 'Content-Type': 'text/plain' })
     response.end(error instanceof Error ? error.stack ?? error.message : String(error))
   }
 })
@@ -120,6 +126,7 @@ const server = http.createServer(async (request, response) => {
 if (!isProduction) {
   vite = await createViteServer({
     root: __dirname,
+    configFile: path.resolve(__dirname, 'vite.config.ts'),
     appType: 'custom',
     server: {
       middlewareMode: true,
@@ -129,10 +136,12 @@ if (!isProduction) {
       },
     },
   })
+
+  await vite.environments.ssr.init()
 }
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Arrow docs server running at http://127.0.0.1:${port}`)
+  console.log(`Arrow docs meta server running at http://127.0.0.1:${port}`)
 })
 
 async function resolveStaticFile(url) {
@@ -142,7 +151,7 @@ async function resolveStaticFile(url) {
     return playgroundRuntimePath
   }
 
-  if (pathname === '/' || pathname === '/docs' || pathname === '/docs/') {
+  if (pathname === '/' || pathname === '/play/' || pathname === '/play/index.html') {
     return null
   }
 
@@ -177,7 +186,6 @@ function contentTypeFor(filePath) {
   if (filePath.endsWith('.html')) return 'text/html'
   if (filePath.endsWith('.svg')) return 'image/svg+xml'
   if (filePath.endsWith('.png')) return 'image/png'
-  if (filePath.endsWith('.gif')) return 'image/gif'
   if (filePath.endsWith('.ico')) return 'image/x-icon'
   return 'application/octet-stream'
 }
@@ -234,4 +242,57 @@ function resolveDevHtmlEntry(url) {
     filePath,
     url: `${target.pathname}${target.search}`,
   }
+}
+
+function resolveTextRoute(url) {
+  const pathname = new URL(url, 'http://arrow.local').pathname
+  return textRoutes.get(pathname) ?? null
+}
+
+async function serveTextRoute(route, request, response) {
+  let renderMarkdown
+
+  if (isProduction) {
+    ;({ renderMarkdown } = await import(pathToFileURL(serverEntryPath).href))
+  } else {
+    ;({ renderMarkdown } = await vite.environments.ssr.runner.import(
+      '/src/entry-server.ts'
+    ))
+  }
+
+  let body
+
+  if (route.render === 'llms') {
+    const docsMarkdown = await renderMarkdown('/')
+    const apiMarkdown = await renderMarkdown('/api')
+    body = [
+      '# ArrowJS',
+      '',
+      '> A < 3KB reactive UI runtime with zero dependencies. Observable data, declarative DOM, and SSR built on platform primitives.',
+      '',
+      '## Documentation',
+      '',
+      '- [Docs](/docs.md): Guide-style essentials — what Arrow is, quickstart, components, reactive data, templates, and SSR.',
+      '- [API Reference](/api.md): Signature-focused reference for every export across @arrow-js/core, @arrow-js/framework, @arrow-js/ssr, and @arrow-js/hydrate.',
+      '',
+      '---',
+      '',
+      '# Docs',
+      '',
+      docsMarkdown,
+      '---',
+      '',
+      '# API Reference',
+      '',
+      apiMarkdown,
+    ].join('\n')
+  } else {
+    body = await renderMarkdown(route.url)
+  }
+
+  response.writeHead(200, {
+    'Content-Type': route.render === 'llms' ? 'text/plain; charset=utf-8' : 'text/markdown; charset=utf-8',
+    'Cache-Control': 'public, max-age=3600',
+  })
+  response.end(body)
 }

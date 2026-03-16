@@ -7,4 +7,4 @@ if (!root) {
   throw new Error('Missing #app root')
 }
 
-html`<div class="starter-page">${App()}</div>`(root)
+html`${App()}`(root)

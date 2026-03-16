@@ -8,11 +8,8 @@
   },
   "scripts": {
     "dev": "pnpm --filter @arrow-js/docs dev",
-    "dev:meta": "pnpm --filter @arrow-js/docs-meta dev",
     "build": "pnpm --filter @arrow-js/core build && pnpm --filter @arrow-js/docs build",
-    "build:meta": "pnpm --filter @arrow-js/docs-meta build",
     "preview": "pnpm --filter @arrow-js/docs preview",
-    "preview:meta": "pnpm --filter @arrow-js/docs-meta preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

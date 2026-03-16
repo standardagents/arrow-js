@@ -1,25 +1,32 @@
 import { component, html, reactive } from '@arrow-js/core'
 
 export const CounterPanel = component((props: { model: { count: number } }) => {
-  const local = reactive({
-    clicks: 0,
-  })
+  const local = reactive({ presses: 0 })
 
-  return html`<section class="starter-panel">
-    <div>
-      <p class="starter-panel__label">Shared count</p>
-      <strong class="starter-panel__value">${() => props.model.count}</strong>
+  const press = (delta: number) => {
+    props.model.count += delta
+    local.presses++
+  }
+
+  const reset = () => {
+    props.model.count = 0
+  }
+
+  return html`<section class="panel">
+    <div class="panel-stats">
+      <div class="panel-stat">
+        <span class="panel-label">Shared count</span>
+        <span class="panel-value">${() => props.model.count}</span>
+      </div>
+      <div class="panel-stat">
+        <span class="panel-label">Local presses</span>
+        <span class="panel-value panel-value--local">${() => local.presses}</span>
+      </div>
     </div>
-    <div class="starter-panel__actions">
-      <button class="starter-button" @click="${() => props.model.count--}">
-        Decrement
-      </button>
-      <button class="starter-button" @click="${() => props.model.count++}">
-        Increment
-      </button>
-      <button class="starter-button starter-button--ghost" @click="${() => local.clicks++}">
-        Local clicks ${() => local.clicks}
-      </button>
+    <div class="panel-actions">
+      <button class="btn" @click="${() => press(-1)}">−</button>
+      <button class="btn" @click="${() => press(1)}">+</button>
+      <button class="btn btn--ghost" @click="${reset}">Reset</button>
     </div>
   </section>`
 })
