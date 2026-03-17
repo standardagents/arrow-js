@@ -108,7 +108,7 @@ function createArrowMainSource(keyed) {
               </a>
             </td>
             <td class="col-md-6"/>
-          </tr>\`.key(id)
+          </tr>\`.key(id).id(id)
         })`
     : `() =>
         data.items.map((row) => {
@@ -124,7 +124,7 @@ function createArrowMainSource(keyed) {
               </a>
             </td>
             <td class="col-md-6"/>
-          </tr>\`
+          </tr>\`.id(id)
         })`
   return `import { reactive, html } from './arrow.js';
 let data = reactive({

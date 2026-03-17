@@ -5,16 +5,33 @@ const expressionObservers: CallableFunction[] = []
 const freeExpressionPointers: number[][] = []
 let cursor = 0
 
-export function storeExpressions(expSlots: ArrowExpression[]): number {
-  const len = expSlots.length
+export function createExpressionBlock(len: number): number {
   const bucket = freeExpressionPointers[len]
   const pointer = bucket?.length ? bucket.pop()! : cursor
   expressionPool[pointer] = len
-  for (let i = 0; i < len; i++) {
-    expressionPool[pointer + i + 1] = expSlots[i]
-  }
   if (pointer === cursor) cursor += len + 1
   return pointer
+}
+
+export function storeExpressions(expSlots: ArrowExpression[]): number {
+  const len = expSlots.length
+  const pointer = createExpressionBlock(len)
+  writeExpressions(expSlots, pointer)
+  return pointer
+}
+
+export function writeExpressions(
+  expSlots: ArrowExpression[],
+  pointer: number
+): void {
+  const len = expressionPool[pointer] as number
+  for (let i = 1; i <= len; i++) {
+    const nextValue = expSlots[i - 1]
+    const target = pointer + i
+    if (Object.is(expressionPool[target], nextValue)) continue
+    expressionPool[target] = nextValue
+    expressionObservers[target]?.(nextValue)
+  }
 }
 
 export function updateExpressions(
@@ -24,11 +41,11 @@ export function updateExpressions(
   if (sourcePointer === toPointer) return
   const len = expressionPool[sourcePointer] as number
   for (let i = 1; i <= len; i++) {
-    const pointer = toPointer + i
+    const target = toPointer + i
     const nextValue = expressionPool[sourcePointer + i]
-    if (Object.is(expressionPool[pointer], nextValue)) continue
-    expressionPool[pointer] = nextValue
-    expressionObservers[pointer]?.(nextValue)
+    if (Object.is(expressionPool[target], nextValue)) continue
+    expressionPool[target] = nextValue
+    expressionObservers[target]?.(nextValue)
   }
 }
 

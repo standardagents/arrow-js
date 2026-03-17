@@ -631,9 +631,10 @@ export function watch<
   const stop = () => {
     flushListeners(watchedDependencies[watchKey], rerun!)
     watchedDependencies[watchKey] = undefined
+    if (isPointer) onExpressionUpdate(effect as number)
     rerun = null
   }
-  if (isPointer) onExpressionUpdate(effect as number, rerun)
+  if (isPointer) onExpressionUpdate(effect as number, runEffect)
   return [runEffect(), stop]
 }
 

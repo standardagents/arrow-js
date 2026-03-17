@@ -1237,6 +1237,92 @@ describe('html', () => {
     expect(x.foo).toBe('baz')
     expect(x.getAttribute('foo')).toBe(null)
   })
+
+  it('reuses a detached chunk by explicit template id', async () => {
+    const host = document.createElement('div')
+    const state = reactive({ show: true, label: 'alpha' })
+
+    html`${() =>
+      state.show
+        ? html`<button data-probe="id">${() => state.label}</button>`.id('probe')
+        : html``}`(host)
+
+    const first = host.querySelector('[data-probe="id"]') as HTMLButtonElement
+    state.show = false
+    await nextTick()
+    expect(host.querySelector('[data-probe="id"]')).toBeNull()
+
+    state.label = 'beta'
+    state.show = true
+    await nextTick()
+
+    const second = host.querySelector('[data-probe="id"]') as HTMLButtonElement
+    expect(second).toBe(first)
+    expect(second.textContent).toBe('beta')
+  })
+
+  it('keeps event listeners live when a detached chunk is revived', async () => {
+    const host = document.createElement('div')
+    const state = reactive({ show: true, clicks: 0 })
+
+    html`${() =>
+      state.show
+        ? html`<button data-probe="reuse" @click="${() => state.clicks++}">
+            ${() => state.clicks}
+          </button>`.id('reuse-button')
+        : html``}`(host)
+
+    const first = host.querySelector('[data-probe="reuse"]') as HTMLButtonElement
+    first.click()
+    await nextTick()
+    expect(first.textContent?.trim()).toBe('1')
+
+    state.show = false
+    await nextTick()
+
+    state.show = true
+    await nextTick()
+
+    const second = host.querySelector('[data-probe="reuse"]') as HTMLButtonElement
+    expect(second).toBe(first)
+    second.click()
+    await nextTick()
+    expect(second.textContent?.trim()).toBe('2')
+  })
+
+  it('reuses a detached chunk for the same static signature without an explicit id', async () => {
+    const host = document.createElement('div')
+    const firstState = reactive({ show: true, label: 'first' })
+    const secondState = reactive({ show: true, label: 'second' })
+
+    const ViewA = () => html`<li data-probe="sig">${firstState.label}</li>`
+    const ViewB = () => html`<li data-probe="sig">${secondState.label}</li>`
+
+    html`${() => (firstState.show ? ViewA() : html``)}`(host)
+    const first = host.querySelector('[data-probe="sig"]') as HTMLLIElement
+
+    firstState.show = false
+    await nextTick()
+
+    html`${() => (secondState.show ? ViewB() : html``)}`(host)
+    const second = host.querySelector('[data-probe="sig"]') as HTMLLIElement
+
+    expect(second).toBe(first)
+    expect(second.textContent).toBe('second')
+  })
+
+  it('throws when the same stale id is reused with a different static signature', async () => {
+    const host = document.createElement('div')
+    const state = reactive({ show: true })
+
+    html`${() => (state.show ? html`<div>alpha</div>`.id('shape-check') : html``)}`(host)
+    state.show = false
+    await nextTick()
+
+    expect(() => html`<span>beta</span>`.id('shape-check')(host)).toThrow(
+      /different static signature/
+    )
+  })
 })
 
 describe('html text nodes', () => {

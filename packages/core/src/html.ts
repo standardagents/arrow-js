@@ -1,6 +1,7 @@
 import { watch } from './reactive'
 import { isChunk, isTpl, queue, swapCleanupCollector } from './common'
 import { setAttr } from './dom'
+import { createPool } from './pool'
 import {
   adoptCapturedChunk,
   getHydrationCapture,
@@ -13,11 +14,11 @@ import {
 } from './component'
 import type { ComponentCall } from './component'
 import {
+  createExpressionBlock,
   expressionPool,
   onExpressionUpdate,
   releaseExpressions,
-  storeExpressions,
-  updateExpressions,
+  writeExpressions,
 } from './expressions'
 
 export interface ArrowTemplate {
@@ -25,12 +26,15 @@ export interface ArrowTemplate {
   (): DocumentFragment
   isT: boolean
   key: (key: ArrowTemplateKey) => ArrowTemplate
+  id: (id: ArrowTemplateId) => ArrowTemplate
   _c: () => Chunk
   _e: number
   _k: ArrowTemplateKey
+  _i?: ArrowTemplateId
 }
 
 type ArrowTemplateKey = string | number | undefined
+type ArrowTemplateId = string | number | undefined
 
 export type ArrowRenderable =
   | string
@@ -77,18 +81,33 @@ export type ArrowExpression =
   | ((evt: InputEvent) => void)
 
 export interface Chunk {
-  readonly paths: [number[], string[]]
+  paths: [number[], string[]]
   dom: DocumentFragment
   ref: DOMRef
   _t: ArrowTemplate
   k?: ArrowTemplateKey
+  i?: ArrowTemplateId
+  e: number
+  g: string
+  b: boolean
+  r: boolean
+  st: boolean
+  sqp?: Chunk
+  sqn?: Chunk
+  bkp?: Chunk
+  bkn?: Chunk
+  bp?: StaleBucket
+  v?: Array<[Element, string, EventListener]> | null
   u?: Array<() => void> | null
   s?: ReturnType<typeof createPropsProxy>[1]
+  next?: Chunk
 }
 
 interface ChunkProto {
   readonly template: HTMLTemplateElement
   readonly paths: Chunk['paths']
+  readonly signature: string
+  readonly expressions: number
 }
 
 interface DOMRef {
@@ -108,7 +127,13 @@ type InternalTemplate = ArrowTemplate & {
   _a?: ArrowExpression[]
   _h?: Chunk
   _m?: boolean
+  _p?: ChunkProto
   _s?: TemplateStringsArray | string[]
+}
+
+interface StaleBucket {
+  head?: Chunk
+  tail?: Chunk
 }
 
 let bindingStackPos = -1
@@ -117,9 +142,44 @@ const nodeStack: Node[] = []
 
 const delimiter = '¤'
 const delimiterComment = `<!--${delimiter}-->`
+const initialChunkPoolSize = 1024
+const staleChunkSoftCap = 8192
 
 const chunkMemo: Record<string, ChunkProto> = {}
 const chunkMemoByRef = new WeakMap<ReadonlyArray<string>, ChunkProto>()
+const staleById = new Map<Exclude<ArrowTemplateId, undefined>, Chunk>()
+const staleBySignature = new Map<string, StaleBucket>()
+const chunkPool = createPool<Chunk, []>(
+  initialChunkPoolSize,
+  () => ({
+    paths: [[], []],
+    dom: null as unknown as DocumentFragment,
+    ref: { f: null, l: null },
+    _t: null as unknown as ArrowTemplate,
+    e: -1,
+    g: '',
+    b: false,
+    r: true,
+    st: false,
+    u: null,
+    v: null,
+    s: undefined,
+    k: undefined,
+    i: undefined,
+    sqp: undefined,
+    sqn: undefined,
+    bkp: undefined,
+    bkn: undefined,
+    bp: undefined,
+    next: undefined,
+  }),
+  function allocate() {
+    return this.next()
+  }
+)
+let staleHead: Chunk | undefined
+let staleTail: Chunk | undefined
+let staleChunkCount = 0
 
 function moveDOMRef(
   ref: DOMRef,
@@ -142,6 +202,191 @@ function moveDOMRef(
   }
 }
 
+function getChunkProto(template: InternalTemplate): ChunkProto {
+  const cached = template._p
+  if (cached) return cached
+  return (template._p = resolveChunkProto(template._s as string[]))
+}
+
+function resolveChunkProto(rawStrings: TemplateStringsArray | string[]): ChunkProto {
+  const cachedByRef = chunkMemoByRef.get(rawStrings)
+  if (cachedByRef) return cachedByRef
+
+  const signature = rawStrings.join(delimiterComment)
+  const cached = chunkMemo[signature]
+  if (cached) {
+    chunkMemoByRef.set(rawStrings, cached)
+    return cached
+  }
+
+  const template = document.createElement('template')
+  template.innerHTML = signature
+  const created = {
+    template,
+    paths: createPaths(template.content),
+    signature,
+    expressions: rawStrings.length - 1,
+  }
+  chunkMemoByRef.set(rawStrings, created)
+  chunkMemo[signature] = created
+  return created
+}
+
+function syncTemplateToChunk(
+  template: InternalTemplate,
+  chunk: Chunk,
+  mounted = false
+) {
+  if (chunk._t && chunk._t !== template) (chunk._t as InternalTemplate).d?.()
+  chunk._t = template
+  chunk.k = template._k
+  chunk.i = template._i
+  template._h = chunk
+  template._m = mounted
+  template._e = chunk.e
+  writeExpressions(template._a!, chunk.e)
+}
+
+function takeChunkRecord(): Chunk {
+  return chunkPool.allocate()
+}
+
+function configureChunk(
+  chunk: Chunk,
+  proto: ChunkProto,
+  template: InternalTemplate
+) {
+  chunk.paths = proto.paths
+  chunk.g = proto.signature
+  chunk.dom = proto.template.content.cloneNode(true) as DocumentFragment
+  chunk.ref.f = chunk.dom.firstChild as ChildNode | null
+  chunk.ref.l = chunk.dom.lastChild as ChildNode | null
+  chunk.e = createExpressionBlock(proto.expressions)
+  chunk.b = false
+  chunk.r = true
+  chunk.st = false
+  chunk.u = null
+  chunk.v = null
+  chunk.s = undefined
+  chunk.bp = undefined
+  chunk.bkp = undefined
+  chunk.bkn = undefined
+  chunk.sqp = undefined
+  chunk.sqn = undefined
+  syncTemplateToChunk(template, chunk)
+}
+
+function acquireChunk(template: InternalTemplate): Chunk {
+  const proto = getChunkProto(template)
+  const exact = template._i === undefined ? undefined : staleById.get(template._i)
+  if (exact && exact.g !== proto.signature) {
+    throw new Error(`Template id "${template._i}" was reused with a different static signature.`)
+  }
+  if (exact && exact.g === proto.signature && exact.r) {
+    removeStaleChunk(exact)
+    syncTemplateToChunk(template, exact)
+    return exact
+  }
+
+  const reused = takeStaleChunk(proto.signature)
+  if (reused) {
+    syncTemplateToChunk(template, reused)
+    return reused
+  }
+
+  const chunk = takeChunkRecord()
+  configureChunk(chunk, proto, template)
+  return chunk
+}
+
+function takeStaleChunk(signature: string): Chunk | undefined {
+  const bucket = staleBySignature.get(signature)
+  let chunk = bucket?.head
+  while (chunk && !chunk.st) chunk = chunk.bkn
+  if (!chunk) return
+  removeStaleChunk(chunk)
+  return chunk
+}
+
+function addStaleChunk(chunk: Chunk) {
+  if (chunk.st || !chunk.r) return
+  chunk.st = true
+  const signature = chunk.g
+  let bucket = staleBySignature.get(signature)
+  if (!bucket) {
+    bucket = {}
+    staleBySignature.set(signature, bucket)
+  }
+  chunk.bp = bucket
+  chunk.bkp = bucket.tail
+  chunk.bkn = undefined
+  if (bucket.tail) bucket.tail.bkn = chunk
+  else bucket.head = chunk
+  bucket.tail = chunk
+
+  chunk.sqp = staleTail
+  chunk.sqn = undefined
+  if (staleTail) staleTail.sqn = chunk
+  else staleHead = chunk
+  staleTail = chunk
+
+  if (chunk.i !== undefined) staleById.set(chunk.i, chunk)
+  staleChunkCount++
+  trimStaleChunks()
+}
+
+function removeStaleChunk(chunk: Chunk) {
+  if (!chunk.st) return
+  const bucket = chunk.bp
+  if (bucket) {
+    if (chunk.bkp) chunk.bkp.bkn = chunk.bkn
+    else bucket.head = chunk.bkn
+    if (chunk.bkn) chunk.bkn.bkp = chunk.bkp
+    else bucket.tail = chunk.bkp
+    if (!bucket.head) staleBySignature.delete(chunk.g)
+  }
+  if (chunk.sqp) chunk.sqp.sqn = chunk.sqn
+  else staleHead = chunk.sqn
+  if (chunk.sqn) chunk.sqn.sqp = chunk.sqp
+  else staleTail = chunk.sqp
+  if (chunk.i !== undefined && staleById.get(chunk.i) === chunk) {
+    staleById.delete(chunk.i)
+  }
+  chunk.st = false
+  chunk.bp = undefined
+  chunk.bkp = undefined
+  chunk.bkn = undefined
+  chunk.sqp = undefined
+  chunk.sqn = undefined
+  staleChunkCount--
+}
+
+function trimStaleChunks() {
+  while (staleChunkCount > staleChunkSoftCap && staleHead) {
+    const chunk = staleHead
+    removeStaleChunk(chunk)
+    destroyChunk(chunk)
+  }
+}
+
+function attachChunkEvents(chunk: Chunk) {
+  const events = chunk.v
+  if (!events) return
+  for (let i = 0; i < events.length; i++) {
+    const [target, event, listener] = events[i]
+    target.addEventListener(event, listener)
+  }
+}
+
+function detachChunkEvents(chunk: Chunk) {
+  const events = chunk.v
+  if (!events) return
+  for (let i = 0; i < events.length; i++) {
+    const [target, event, listener] = events[i]
+    target.removeEventListener(event, listener)
+  }
+}
+
 export function html(
   strings: TemplateStringsArray | string[],
   ...expSlots: ArrowExpression[]
@@ -155,27 +400,20 @@ export function html(
   template.isT = true
   template._a = expSlots
   template._c = ensureChunk
-  template._e = storeExpressions(expSlots)
+  template._e = -1
   template._m = false
   template._s = strings
   template.key = setTemplateKey
+  template.id = setTemplateId
   template.x = releaseTemplateExpressions
   template.d = resetTemplate
   return template
 }
 
-function ensureExpressionPointer(template: InternalTemplate) {
-  return template._e < 0
-    ? (template._e = storeExpressions(template._a!))
-    : template._e
-}
-
 function ensureChunk(this: InternalTemplate) {
   let chunk = this._h
   if (!chunk) {
-    chunk = createChunk(this._s as string[]) as Chunk
-    chunk._t = this
-    chunk.k = this._k
+    chunk = acquireChunk(this)
     this._h = chunk
   }
   return chunk
@@ -187,38 +425,41 @@ function setTemplateKey(this: InternalTemplate, key: ArrowTemplateKey) {
   return this
 }
 
+function setTemplateId(this: InternalTemplate, id: ArrowTemplateId) {
+  this._i = id
+  if (this._h) this._h.i = id
+  return this
+}
+
 function releaseTemplateExpressions(this: InternalTemplate) {
-  if (this._e + 1) {
-    releaseExpressions(this._e)
-    this._e = -1
-  }
+  this._e = -1
 }
 
 function resetTemplate(this: InternalTemplate) {
   this._m = false
   this._h = undefined
-  this.x?.()
+  this._e = -1
 }
 
 function renderTemplate(template: InternalTemplate, el?: ParentNode) {
+  const chunk = template._c()
   if (!template._m) {
     template._m = true
-    return createBindings(
-      template._c(),
-      ensureExpressionPointer(template),
-      el
-    )
+    if (!chunk.b) {
+      writeExpressions(template._a!, chunk.e)
+      return createBindings(chunk, el)
+    }
+    return el ? el.appendChild(chunk.dom) && el : chunk.dom
   }
-  const liveChunk = template._c()
-  moveDOMRef(liveChunk.ref, liveChunk.dom)
-  return el ? el.appendChild(liveChunk.dom) : liveChunk.dom
+  moveDOMRef(chunk.ref, chunk.dom)
+  return el ? el.appendChild(chunk.dom) : chunk.dom
 }
 
 function createBindings(
   chunk: Chunk,
-  expressionPointer: number,
   el?: ParentNode
 ): ParentNode | DocumentFragment {
+  const expressionPointer = chunk.e
   const totalPaths = expressionPool[expressionPointer] as number
   const [pathTape, attrNames] = chunk.paths
   const stackStart = bindingStackPos + 1
@@ -245,6 +486,7 @@ function createBindings(
   }
   bindingStack.length = stackStart
   bindingStackPos = stackStart - 1
+  chunk.b = true
   return el ? el.appendChild(chunk.dom) && el : chunk.dom
 }
 
@@ -258,6 +500,7 @@ function createNodeBinding(
   const capture = getHydrationCapture()
 
   if (isCmp(expression) || isTpl(expression) || Array.isArray(expression)) {
+    parentChunk.r = false
     const render = createRenderFn(capture)
     fragment = render(expression)!
     if (capture) {
@@ -271,6 +514,7 @@ function createNodeBinding(
     const [frag, stop] = watch(expressionPointer, (value) => {
       if (!render) {
         if (isCmp(value) || isTpl(value) || Array.isArray(value)) {
+          parentChunk.r = false
           render = createRenderFn(capture)
           const next = render(value)!
           if (target) {
@@ -345,17 +589,21 @@ function createAttrBinding(
 
   if (attrName[0] === '@') {
     const event = attrName.slice(1)
-    const listener = (evt: Event) =>
-      (expressionPool[expressionPointer] as CallableFunction)?.(evt)
+    const listener = (evt: Event) => {
+      if (parentChunk.st || !(parentChunk._t as InternalTemplate)._m) return
+      ;(expressionPool[expressionPointer] as CallableFunction)?.(evt)
+    }
+    const record: [Element, string, EventListener] = [target, event, listener]
     target.addEventListener(event, listener)
     target.removeAttribute(attrName)
-    ;(parentChunk.u ??= []).push(() => target.removeEventListener(event, listener))
+    ;(parentChunk.v ??= []).push(record)
     if (capture) {
       registerHydrationHook(parentChunk, (map) => {
         const adopted = map.get(target)
         if (!adopted) return
         target.removeEventListener(event, listener)
         target = adopted as Element
+        record[0] = target
         target.addEventListener(event, listener)
         target.removeAttribute(attrName)
       })
@@ -390,12 +638,12 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
     if (!previous) {
       if (isCmp(renderable)) {
         const [fragment, chunk] = renderComponent(renderable)
-        previous = chunk
+        previous = mountChunkFragment(fragment, chunk)
         return fragment
       }
       if (isTpl(renderable)) {
         const fragment = renderable()
-        previous = renderable._c()
+        previous = mountChunkFragment(fragment, renderable._c())
         return fragment
       }
       if (Array.isArray(renderable)) {
@@ -436,8 +684,7 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
             key in keyedChunks
           ) {
             const keyedChunk = keyedChunks[key]
-            updateExpressions(item._e, keyedChunk._t._e)
-            if (keyedChunk._t !== item) (item as InternalTemplate).x?.()
+            syncTemplateToChunk(item as InternalTemplate, keyedChunk, true)
             item = keyedChunk._t
           }
           if (i > previousLength - 1) {
@@ -525,11 +772,12 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
         return prev
       }
       const [fragment, chunk] = renderComponent(renderable)
+      const mounted = mountChunkFragment(fragment, chunk)
       getNode(prev, anchor).after(fragment)
       forgetChunk(prev)
       unmount(prev)
       if (chunk.k !== undefined) keyedChunks[chunk.k] = chunk
-      return chunk
+      return mounted
     }
     if (!isTpl(renderable) && nodeType === 3) {
       const value = renderText(renderable)
@@ -537,9 +785,11 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       return prev
     }
     if (isTpl(renderable)) {
-      const chunk = renderable._c()
-      if (chunk.k !== undefined && chunk.k in keyedChunks) {
-        const keyedChunk = keyedChunks[chunk.k]
+      const template = renderable as InternalTemplate
+      const key = template._k
+      if (key !== undefined && key in keyedChunks) {
+        const keyedChunk = keyedChunks[key]
+        syncTemplateToChunk(template, keyedChunk, true)
         if (keyedChunk === prev) return prev
         if (anchor) {
           moveDOMRef(keyedChunk.ref, anchor.parentNode, anchor.nextSibling)
@@ -548,16 +798,20 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
           moveDOMRef(keyedChunk.ref, target.parentNode, target)
         }
         return keyedChunk
-      } else if (isChunk(prev) && prev.paths === chunk.paths) {
-        updateExpressions(chunk._t._e, prev._t._e)
-        if (chunk._t !== prev._t) (chunk._t as InternalTemplate).x?.()
+      }
+      const proto = getChunkProto(template)
+      if (isChunk(prev) && prev.g === proto.signature) {
+        syncTemplateToChunk(template, prev, true)
         return prev
       }
-      getNode(prev, anchor).after(renderable())
+      const chunk = template._c()
+      const fragment = renderable()
+      const mounted = mountChunkFragment(fragment, chunk)
+      getNode(prev, anchor).after(fragment)
       forgetChunk(prev)
       unmount(prev)
       if (chunk.k !== undefined) keyedChunks[chunk.k] = chunk
-      return chunk
+      return mounted
     }
     const text = document.createTextNode(renderText(renderable))
     getNode(prev, anchor).after(text)
@@ -574,17 +828,24 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       const [inner, chunk] = renderComponent(item)
       fragment.appendChild(inner)
       if (chunk.k !== undefined) keyedChunks[chunk.k] = chunk
-      return chunk
+      return mountChunkFragment(fragment, chunk)
     }
     if (isTpl(item)) {
       fragment.appendChild(item())
       const chunk = item._c()
       if (chunk.k !== undefined) keyedChunks[chunk.k] = chunk
-      return chunk
+      return mountChunkFragment(fragment, chunk)
     }
     const node = document.createTextNode(renderText(item))
     fragment.appendChild(node)
     return node
+  }
+
+  function mountChunkFragment(fragment: DocumentFragment, chunk: Chunk): Rendered {
+    if (chunk.ref.f || chunk.ref.l) return chunk
+    const placeholder = document.createTextNode('')
+    fragment.appendChild(placeholder)
+    return placeholder
   }
 
   function forgetChunk(item: Chunk | Text | Rendered[] | undefined) {
@@ -611,6 +872,7 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
     if (cleanups.length) {
       ;(chunk.u ??= []).push(...cleanups)
     }
+    chunk.r = false
     chunk.s = box
     chunk.k = renderable.k
     return [fragment, chunk]
@@ -626,6 +888,51 @@ let unmountStack: Array<
   | Array<Chunk | Text | ChildNode>
 > = []
 
+function destroyChunk(chunk: Chunk) {
+  if (chunk.st) removeStaleChunk(chunk)
+  ;(chunk._t as InternalTemplate).d?.()
+  detachChunkEvents(chunk)
+  if (chunk.u) {
+    for (let i = 0; i < chunk.u.length; i++) chunk.u[i]()
+    chunk.u = null
+  }
+  if (chunk.e + 1) {
+    releaseExpressions(chunk.e)
+    chunk.e = -1
+  }
+  let node = chunk.ref.f
+  if (node) {
+    const last = chunk.ref.l
+    if (node === last) node.remove()
+    else {
+      while (node) {
+        const next: ChildNode | null =
+          node === last ? null : (node.nextSibling as ChildNode | null)
+        node.remove()
+        if (!next) break
+        node = next
+      }
+    }
+  }
+  chunk.dom.textContent = ''
+  chunk.ref.f = null
+  chunk.ref.l = null
+  chunk.k = undefined
+  chunk.i = undefined
+  chunk.s = undefined
+  chunk.v = null
+  chunk.b = false
+  chunk.r = true
+  chunk.g = ''
+  chunkPool.free(chunk)
+}
+
+function recycleChunk(chunk: Chunk) {
+  moveDOMRef(chunk.ref, chunk.dom)
+  ;(chunk._t as InternalTemplate).d?.()
+  addStaleChunk(chunk)
+}
+
 const queueUnmount = queue(() => {
   const removeItems = (
     chunk:
@@ -635,25 +942,8 @@ const queueUnmount = queue(() => {
       | Array<Chunk | Text | ChildNode>
   ) => {
     if (isChunk(chunk)) {
-      if (chunk.u) {
-        for (let i = 0; i < chunk.u.length; i++) chunk.u[i]()
-        chunk.u = null
-      }
-      let node = chunk.ref.f
-      if (node) {
-        const last = chunk.ref.l
-        if (node === last) node.remove()
-        else {
-          while (node) {
-            const next: ChildNode | null =
-              node === last ? null : (node.nextSibling as ChildNode | null)
-            node.remove()
-            if (!next) break
-            node = next
-          }
-        }
-      }
-      ;(chunk._t as InternalTemplate).d?.()
+      if (chunk.r) recycleChunk(chunk)
+      else destroyChunk(chunk)
     } else if (Array.isArray(chunk)) {
       for (let i = 0; i < chunk.length; i++) removeItems(chunk[i])
     } else {
@@ -723,33 +1013,24 @@ function adoptRenderedValue(
 export function createChunk(
   rawStrings: TemplateStringsArray | string[]
 ): Omit<Chunk, 'ref'> & { ref: DOMRef } {
-  const cachedByRef = chunkMemoByRef.get(rawStrings)
-  const memoized: ChunkProto =
-    cachedByRef ??
-    (() => {
-      const memoKey = rawStrings.join(delimiterComment)
-      const cached = chunkMemo[memoKey]
-      if (cached) {
-        chunkMemoByRef.set(rawStrings, cached)
-        return cached
-      }
-      const template = document.createElement('template')
-      template.innerHTML = memoKey
-      const created = {
-        template,
-        paths: createPaths(template.content),
-      }
-      chunkMemoByRef.set(rawStrings, created)
-      return (chunkMemo[memoKey] = created)
-    })()
-  const dom = memoized.template.content.cloneNode(true) as DocumentFragment
-  const instance = Object.create(memoized) as Omit<Chunk, 'ref'> & { ref: DOMRef }
-  instance.dom = dom
-  instance.ref = {
-    f: dom.firstChild as ChildNode | null,
-    l: dom.lastChild as ChildNode | null,
-  }
-  return instance
+  const proto = resolveChunkProto(rawStrings)
+  const chunk = takeChunkRecord()
+  chunk.paths = proto.paths
+  chunk.g = proto.signature
+  chunk.dom = proto.template.content.cloneNode(true) as DocumentFragment
+  chunk.ref.f = chunk.dom.firstChild as ChildNode | null
+  chunk.ref.l = chunk.dom.lastChild as ChildNode | null
+  chunk.e = createExpressionBlock(proto.expressions)
+  chunk.b = false
+  chunk.r = true
+  chunk.st = false
+  chunk.u = null
+  chunk.v = null
+  chunk.s = undefined
+  chunk.k = undefined
+  chunk.i = undefined
+  chunk._t = null as unknown as ArrowTemplate
+  return chunk as Omit<Chunk, 'ref'> & { ref: DOMRef }
 }
 
 export function createPaths(dom: DocumentFragment): Chunk['paths'] {

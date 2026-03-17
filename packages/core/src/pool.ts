@@ -41,7 +41,7 @@ export interface Pool<T, A extends unknown[]> {
    */
   size: number
   /**
-   * Returns the next free item in the pool, if necessary it will grow the pool.
+   * Pops the next free item from the pool, growing the slab if necessary.
    */
   next: () => T
 }
@@ -65,10 +65,10 @@ export interface PoolNode<T> {
  * pool.
  *
  * It is the implementor's responsibility to retrieve the next free node
- * from the pool and assign the arguments to that node. You can retrieve the
- * arguments by using the `this` keyword inside the `allocate` function body.
- * The allocate function should always return the `this` keyword and should be
- * written with the `function` keyword, not the arrow function syntax.
+ * from the pool and assign the arguments to that node. `next()` pops the
+ * current head node and advances the free list automatically. The allocate
+ * function should return the populated node and should be written with the
+ * `function` keyword, not the arrow function syntax.
  *
  * @param initialSize - The initial size of the pool.
  * @param create - A function that creates a new PoolNode of the desired shape.
@@ -109,8 +109,18 @@ function grow<T extends PoolNode<T>, A extends unknown[]>(
   this: Pool<T, A>,
   size: number
 ): Pool<T, A> {
+  let first: T | undefined
+  let previous: T | undefined
   for (let i = 0; i < size; i++) {
-    this.data.push(this.free(this.create()))
+    const node = this.create()
+    this.data.push(node)
+    if (previous) previous.next = node
+    else first = node
+    previous = node
+  }
+  if (previous) {
+    previous.next = this.head
+    this.head = first
   }
   return this
 }
@@ -135,5 +145,9 @@ function free<T extends PoolNode<T>, A extends unknown[]>(
  * @returns
  */
 function next<T extends PoolNode<T>, A extends unknown[]>(this: Pool<T, A>): T {
-  return this.head ?? this.grow(this.size).head!
+  if (!this.head) this.grow(this.size)
+  const node = this.head!
+  this.head = node.next
+  node.next = undefined
+  return node
 }
