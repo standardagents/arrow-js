@@ -8,22 +8,23 @@ test('home page is server rendered without javascript', async ({ browser }) => {
 
   await page.goto('/')
 
-  await expect(page.locator('h1')).toHaveText('Reactivity without the Framework')
-  await expect(page.locator('#hydration-probe')).toContainText('Clicks: 0')
+  await expect(page.locator('#hero h1')).toContainText('The UI framework for')
+  await expect(page.locator('#hero-counter')).toContainText('Clicked 0 times')
 
   await context.close()
 })
 
-test('docs page is server rendered without javascript', async ({ browser }) => {
+test('api page is server rendered without javascript', async ({ browser }) => {
   const context = await browser.newContext({
     javaScriptEnabled: false,
   })
   const page = await context.newPage()
 
-  await page.goto('/docs/')
+  await page.goto('/api')
 
-  await expect(page.locator('#essentials')).toHaveText('Essentials')
-  await expect(page.locator('nav.navigation')).toBeVisible()
+  await expect(page.locator('h1')).toHaveText('API Reference')
+  await expect(page.locator('article')).toContainText('reactive()')
+  await expect(page.locator('nav .nav-group-title').first()).toHaveText('@arrow-js/core')
   await expect(page.locator('body')).not.toContainText('Changelog')
 
   await context.close()
@@ -35,74 +36,78 @@ test('home page hydrates component state without remounting the app root', async
   await trackAppRootReplacements(page)
   await page.goto('/')
 
-  const probe = page.locator('#hydration-probe')
-  const shell = page.locator('#hydration-probe-shell')
+  const counter = page.locator('#hero-counter')
+  const hero = page.locator('#hero')
 
   await expect
     .poll(() => page.evaluate(() => window.__arrowAppReplaceChildrenCalls))
     .toBe(0)
-  await expect(probe).toHaveText('Clicks: 0')
-  await probe.click()
-  await expect(probe).toHaveText('Clicks: 1')
-  await shell.click()
-  await expect(probe).toHaveText('Clicks: 1')
+  await expect(counter).toHaveText('Clicked 0 times')
+  await counter.click()
+  await expect(counter).toHaveText('Clicked 1 times')
+  await hero.click({ position: { x: 40, y: 40 } })
+  await expect(counter).toHaveText('Clicked 1 times')
 })
 
-test('home page repairs a tampered async subtree without remounting the app root', async ({
+test('home page repairs a tampered counter subtree without remounting the app root', async ({
   page,
 }) => {
   await trackAppRootReplacements(page)
   await tamperDocument(page, '/', (html) =>
-    html.replace(
-      '<script type="module" src="/src/entry-client.js"></script>',
-      '<script>document.getElementById("hydration-probe")?.remove()</script><script type="module" src="/src/entry-client.js"></script>'
+    injectBeforeModuleScript(
+      html,
+      '<script>document.getElementById("hero-counter")?.remove()</script>'
     )
   )
   await page.goto('/')
 
-  const probe = page.locator('#hydration-probe')
+  const counter = page.locator('#hero-counter')
 
   await expect
     .poll(() => page.evaluate(() => window.__arrowAppReplaceChildrenCalls))
     .toBe(0)
-  await expect(probe).toContainText('Clicks: 0')
-  await probe.click()
-  await expect(probe).toHaveText('Clicks: 1')
+  await expect(counter).toContainText('Clicked 0 times')
+  await counter.click()
+  await expect(counter).toHaveText('Clicked 1 times')
 })
 
-test('docs page hydrates navigation without remounting the app root', async ({
+test('api page hydrates the copy menu without remounting the app root', async ({
   page,
 }) => {
   await trackAppRootReplacements(page)
-  await page.goto('/docs/')
+  await page.goto('/api')
 
-  const selection = page.locator('nav.navigation .selection')
+  const toggle = page.locator('.copy-menu-toggle')
+  const dropdown = page.locator('.copy-menu-dropdown')
 
   await expect
     .poll(() => page.evaluate(() => window.__arrowAppReplaceChildrenCalls))
     .toBe(0)
-  await selection.click()
-  await expect(selection).toHaveAttribute('data-is-open', 'true')
+  await toggle.click()
+  await expect(dropdown).toHaveAttribute('data-open', '')
   const article = page.locator('article')
   const box = await article.boundingBox()
 
   if (!box) {
-    throw new Error('Unable to measure docs article content.')
+    throw new Error('Unable to measure api article content.')
   }
 
   await page.mouse.click(box.x + box.width / 2, box.y + 32)
-  await expect(selection).not.toHaveAttribute('data-is-open', 'true')
+  await expect(dropdown).not.toHaveAttribute('data-open', '')
 })
 
 test('shared header shows icon controls and theme toggle works', async ({ page }) => {
-  await page.goto('/docs/')
+  await page.addInitScript(() => {
+    localStorage.setItem('arrow-theme', 'light')
+  })
+  await page.goto('/')
 
   await expect(page.locator('a[aria-label="GitHub"]')).toBeVisible()
   await expect(page.locator('a[aria-label="Follow on X"]')).toBeVisible()
-  await expect(page.locator('.social-links li')).toHaveCount(4)
+  await expect(page.locator('a.header-nav-link')).toHaveCount(2)
 
   const html = page.locator('html')
-  const toggle = page.locator('#theme-toggle')
+  const toggle = page.getByRole('button', { name: 'Toggle theme' })
 
   await expect(html).toHaveAttribute('data-theme', 'light')
   await toggle.click()
@@ -110,18 +115,18 @@ test('shared header shows icon controls and theme toggle works', async ({ page }
 })
 
 test('docs TypeScript examples expose Twoslash hover data', async ({ page }) => {
-  const messages = []
+  const messages: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error' || msg.type() === 'warning') {
       messages.push(msg.text())
     }
   })
 
-  await page.goto('/docs/')
+  await page.goto('/')
 
   await expect
     .poll(() => page.locator('pre.twoslash').count())
-    .toBeGreaterThan(14)
+    .toBeGreaterThan(8)
 
   const block = page.locator('pre.twoslash').first()
   await expect(block).toBeVisible()
@@ -142,11 +147,11 @@ test('docs TypeScript examples expose Twoslash hover data', async ({ page }) => 
 test('docs examples link into the playground and changelog is absent', async ({
   page,
 }) => {
-  await page.goto('/docs/')
+  await page.goto('/')
 
   await expect(page.locator('article')).not.toContainText('Changelog')
-  await expect(page.locator('.docs-example-card')).toHaveCount(6)
-  await expect(page.locator('.docs-example-card a[href^="/play/"]')).toHaveCount(6)
+  await expect(page.locator('#examples .grid > div')).toHaveCount(6)
+  await expect(page.locator('#examples .grid > div a[href^="/play/"]')).toHaveCount(6)
 })
 
 async function trackAppRootReplacements(page) {
@@ -191,4 +196,8 @@ async function tamperDocument(page, pathname, mutate) {
       },
     })
   })
+}
+
+function injectBeforeModuleScript(html, injection) {
+  return html.replace(/(<script type="module"[^>]*>)/, `${injection}$1`)
 }

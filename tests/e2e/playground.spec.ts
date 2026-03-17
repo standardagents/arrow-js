@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test'
-import { playgroundExampleHref, playgroundExampleMeta } from '../../docs/play/example-meta.js'
+import {
+  playgroundExampleHref,
+  playgroundExampleMeta,
+  starterExampleId,
+} from '../../docs/play/example-meta.js'
 
-test('playground loads the multi-file dropdown example', async ({ page }) => {
+test('playground loads the starter multi-file example', async ({ page }) => {
   const messages: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error' || msg.type() === 'warning') {
@@ -9,14 +13,12 @@ test('playground loads the multi-file dropdown example', async ({ page }) => {
     }
   })
 
-  await page.goto('/play/?example=dropdowns')
+  await page.goto(playgroundExampleHref(starterExampleId))
 
-  await expect(page.locator('.play-example')).toHaveCount(0)
   await expect(page.locator('.play-file-name')).toHaveText([
     'main.ts',
-    'Dropdown.ts',
-    'DropdownGallery.ts',
-    'FieldCard.ts',
+    'App.ts',
+    'CounterPanel.ts',
     'styles.css',
   ])
 
@@ -44,7 +46,7 @@ test('playground loads every registered example by direct url', async ({ page })
   for (const example of playgroundExampleMeta) {
     await page.goto(playgroundExampleHref(example.id))
 
-    await expect(page.locator('.play-example')).toHaveCount(0)
+    await expect(page.locator('.play-file-name')).not.toHaveCount(0)
     await expect
       .poll(() => preview.locator('#runtime-error').getAttribute('data-active'))
       .toBe('false')

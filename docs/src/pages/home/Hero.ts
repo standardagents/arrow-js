@@ -97,6 +97,7 @@ html&#96;&#36;{Counter()}&#96;(document.body)</code></pre>
               </span>
             </div>
             <button
+              id="hero-counter"
               @click="${() => heroData.count++}"
               class="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors cursor-pointer outline-none"
             >

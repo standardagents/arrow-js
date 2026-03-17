@@ -63,7 +63,6 @@ export function createEngine(heroEl: HTMLElement): RainEngine {
 
   const runner = Matter.Runner.create({
     delta: 1000 / 60,
-    isFixed: true,
   })
 
   const measureCanvas = document.createElement('canvas')

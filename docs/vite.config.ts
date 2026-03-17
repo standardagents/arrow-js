@@ -17,6 +17,13 @@ export default defineConfig({
   build: {
     outDir: path.resolve(rootDir, 'dist/client'),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(rootDir, 'index.html'),
+        play: path.resolve(rootDir, 'play/index.html'),
+        playPreview: path.resolve(rootDir, 'play/preview.html'),
+      },
+    },
   },
   environments: {
     ssr: {

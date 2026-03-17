@@ -9,7 +9,12 @@
  */
 
 export interface Env {
-  PLAY_KV: KVNamespace
+  PLAY_KV: PlayKvNamespace
+}
+
+interface PlayKvNamespace {
+  get(key: string): Promise<string | null>
+  put(key: string, value: string): Promise<void>
 }
 
 const HASH_LENGTH = 32
@@ -32,7 +37,7 @@ async function handleSave(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  const body = await request.json<{ snapshot: string }>()
+  const body = await request.json() as { snapshot?: unknown }
   if (!body?.snapshot || typeof body.snapshot !== 'string') {
     return Response.json(
       { error: 'Missing snapshot field' },

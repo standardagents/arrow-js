@@ -1,10 +1,10 @@
-import { component, html, reactive } from '@arrow-js/core'
+import { component, html, reactive, type ArrowTemplate, type Props } from '@arrow-js/core'
 
-interface CopyPageMenuProps {
+type CopyPageMenuProps = Record<PropertyKey, unknown> & {
   markdownPath: string
 }
 
-export const CopyPageMenu = component((props: CopyPageMenuProps) => {
+export const CopyPageMenu = component<CopyPageMenuProps, ArrowTemplate>((props: Props<CopyPageMenuProps>) => {
   const state = reactive({ open: false, copied: false })
 
   let copyTimer = 0

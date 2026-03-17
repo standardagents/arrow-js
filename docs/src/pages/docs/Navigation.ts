@@ -4,15 +4,29 @@ import {
   playgroundExampleHref,
 } from '../../../play/example-meta.js'
 
-interface NavItem {
-  label: string
-  id?: string
-  href?: string
-}
+type NavItem =
+  | {
+      label: string
+      id: string
+      href?: never
+    }
+  | {
+      label: string
+      href: string
+      id?: never
+    }
 
 interface NavGroup {
   title: string
   items: NavItem[]
+}
+
+function isIdItem(item: NavItem): item is Extract<NavItem, { id: string }> {
+  return typeof item.id === 'string'
+}
+
+function isHrefItem(item: NavItem): item is Extract<NavItem, { href: string }> {
+  return typeof item.href === 'string'
 }
 
 const navigation: NavGroup[] = [
@@ -47,7 +61,7 @@ const navigation: NavGroup[] = [
   },
 ]
 
-const allIds = navigation.flatMap((g) => g.items.map((i) => i.id))
+const allIds = navigation.flatMap((group) => group.items.filter(isIdItem).map((item) => item.id))
 const spy = reactive({ active: '' })
 
 function initScrollSpy() {
@@ -61,7 +75,10 @@ function initScrollSpy() {
       doc.scrollTop + doc.clientHeight >= doc.scrollHeight - 10
 
     if (atBottom) {
-      spy.active = allIds[allIds.length - 1]
+      const lastId = allIds.at(-1)
+      if (lastId) {
+        spy.active = lastId
+      }
       return
     }
 
@@ -109,7 +126,7 @@ function NavGroupView(group: NavGroup) {
       <div class="nav-group-title">${group.title}</div>
       ${group.items.map(
         (item) =>
-          item.href
+          isHrefItem(item)
             ? html`<a href="${item.href}" class="nav-link nav-link-external">${item.label}</a>`
             : html`<a
                 href="${`#${item.id}`}"

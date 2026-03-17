@@ -21,6 +21,12 @@ const TWOSLASH_COMPILER_OPTIONS = {
 
 let highlighterLoader: ReturnType<typeof initHighlighter> | undefined
 
+function getRequestUrl(input: RequestInfo | URL) {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.href
+  return input.url
+}
+
 function createCodeWrapper(html: string) {
   const template = document.createElement('template')
   template.innerHTML = html.trim()
@@ -104,7 +110,7 @@ async function initHighlighter() {
   })
 
   const twoslashFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : (input as Request).url
+    const url = getRequestUrl(input)
     const fileName = url.slice(url.lastIndexOf('/') + 1)
 
     if (
@@ -148,11 +154,7 @@ async function initHighlighter() {
 
   return {
     highlighter,
-    twoslashTransformer: createTransformerFactory(
-      (code: string, lang: string, options: unknown) =>
-        twoslash.runSync(code, lang, options),
-      rendererRich()
-    ),
+    twoslashTransformer: createTransformerFactory(twoslash.runSync, rendererRich()),
   }
 }
 

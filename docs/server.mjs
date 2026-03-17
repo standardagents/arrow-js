@@ -248,8 +248,22 @@ async function resolveStaticFile(url) {
     return playgroundRuntimePath
   }
 
-  if (pathname === '/' || pathname === '/play/' || pathname === '/play/index.html') {
+  if (pathname === '/') {
     return null
+  }
+
+  const builtHtmlEntries = new Map([
+    ['/play/', path.resolve(clientDistPath, 'play/index.html')],
+    ['/play/index.html', path.resolve(clientDistPath, 'play/index.html')],
+    ['/play/preview.html', path.resolve(clientDistPath, 'play/preview.html')],
+  ])
+  const builtHtmlEntry = builtHtmlEntries.get(pathname)
+
+  if (builtHtmlEntry) {
+    try {
+      const stats = await fs.stat(builtHtmlEntry)
+      if (stats.isFile()) return builtHtmlEntry
+    } catch {}
   }
 
   const candidates = [

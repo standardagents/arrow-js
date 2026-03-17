@@ -44,8 +44,8 @@ describe('docs hydration', () => {
 
     expect(ssr.html).toContain('aria-label="GitHub"')
     expect(ssr.html).toContain('aria-label="Follow on X"')
-    expect(ssr.html).toContain('class="github-button"')
-    expect(ssr.html).toContain('id="theme-toggle"')
+    expect(ssr.html).toContain('aria-label="Toggle theme"')
+    expect(ssr.html).toContain('class="header-nav-link"')
   })
 
   it('adopts the home page without replacing the root', async () => {
@@ -55,34 +55,34 @@ describe('docs hydration', () => {
     expect(root.firstElementChild).toBe(existing)
   })
 
-  it('adopts the docs page without replacing the root', async () => {
-    const { result, existing, root } = await hydratePage('/docs/')
+  it('adopts the api page without replacing the root', async () => {
+    const { result, existing, root } = await hydratePage('/api')
 
     expect(result.adopted).toBe(true)
     expect(root.firstElementChild).toBe(existing)
   })
 
-  it('repairs a missing hydration probe on the home page without replacing intact siblings', async () => {
+  it('repairs a missing home counter without replacing intact siblings', async () => {
     const root = document.createElement('div')
     const serverPage = createPage('/')
     const ssr = await renderToString(serverPage.view)
     root.innerHTML = ssr.html
 
-    const existingHero = root.querySelector('.the-home-hero')
-    root.querySelector('#hydration-probe')?.remove()
+    const existingHero = root.querySelector('#hero')
+    root.querySelector('#hero-counter')?.remove()
 
     const clientPage = createPage('/')
     const result = await hydrate(root, clientPage.view, ssr.payload)
 
     expect(result.adopted).toBe(true)
     expect(result.mismatches).toBeGreaterThan(0)
-    expect(root.querySelector('.the-home-hero')).toBe(existingHero)
-    expect(root.querySelector('#hydration-probe')?.textContent).toContain('Clicks: 0')
+    expect(root.querySelector('#hero')).toBe(existingHero)
+    expect(root.querySelector('#hero-counter')?.textContent).toContain('Clicked 0 times')
 
-    ;(root.querySelector('#hydration-probe') as HTMLButtonElement).click()
+    ;(root.querySelector('#hero-counter') as HTMLButtonElement).click()
     await nextTick()
 
-    expect(root.querySelector('#hydration-probe')?.textContent).toContain('Clicks: 1')
+    expect(root.querySelector('#hero-counter')?.textContent).toContain('Clicked 1 times')
   })
 })
 

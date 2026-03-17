@@ -7,7 +7,7 @@ export default defineConfig({
     command:
       'pnpm --filter @arrow-js/docs build && PORT=4174 pnpm --filter @arrow-js/docs preview',
     url: 'http://127.0.0.1:4174',
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
   },
   use: {
     baseURL: 'http://127.0.0.1:4174',
