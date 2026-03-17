@@ -2,10 +2,9 @@
   "name": "arrowjs-syntax",
   "displayName": "ArrowJS Syntax",
   "description": "Theme-native HTML syntax highlighting for ArrowJS html`...` and t`...` template literals in JavaScript and TypeScript.",
-  "version": "0.1.4",
+  "version": "1.0.0",
   "publisher": "StandardAgents",
   "license": "MIT",
-  "preview": true,
   "type": "module",
   "icon": "assets/arrow-logo.png",
   "repository": {
