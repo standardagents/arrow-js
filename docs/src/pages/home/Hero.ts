@@ -1,8 +1,20 @@
 import { html, reactive } from '@arrow-js/core'
 import { CodeBlock } from '../../components/CodeBlock'
-import { CliCommand } from '../../components/CliCommand'
+import { CliCommandIsland } from '../../components/CliCommand'
 
 const heroData = reactive({ count: 0 })
+
+export function HeroCounter() {
+  return html`
+    <button
+      id="hero-counter"
+      @click="${() => heroData.count++}"
+      class="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors cursor-pointer outline-none"
+    >
+      Clicked ${() => heroData.count} times
+    </button>
+  `
+}
 
 export function Hero(options: { highlightCode?: boolean } = {}) {
   const highlightCode = options.highlightCode !== false
@@ -46,7 +58,7 @@ export function Hero(options: { highlightCode?: boolean } = {}) {
         </p>
 
         <div class="mt-8 md:mt-10 flex justify-center">
-          ${CliCommand()}
+          ${CliCommandIsland()}
         </div>
       </div>
 
@@ -98,13 +110,7 @@ html\`
                 Result
               </span>
             </div>
-            <button
-              id="hero-counter"
-              @click="${() => heroData.count++}"
-              class="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700 transition-colors cursor-pointer outline-none"
-            >
-              Clicked ${() => heroData.count} times
-            </button>
+            <div id="hero-counter-root">${HeroCounter()}</div>
           </div>
         </div>
       </div>

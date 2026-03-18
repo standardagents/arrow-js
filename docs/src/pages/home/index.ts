@@ -1,15 +1,12 @@
 import { html } from '@arrow-js/core'
-import { CopyPageMenu } from '../../components/CopyPageMenu'
+import { CopyPageMenuIsland } from '../../components/CopyPageMenu'
 import { Hero } from './Hero'
 import { ScrollSpyNav } from '../../components/ScrollSpyNav'
-import type { NavGroup } from '../../components/ScrollSpyNav'
-import {
-  docsExampleMeta,
-  playgroundExampleHref,
-} from '../../../play/example-meta.js'
+import { homeNavGroups } from './nav'
 import {
   WhyArrow,
   Quickstart,
+  Community,
   Components,
   HighlightedComponents,
   ReactiveData,
@@ -23,37 +20,9 @@ import {
   HighlightedExamples,
 } from '../docs/content'
 
-const homeNavGroups: NavGroup[] = [
-  {
-    title: 'Getting Started',
-    items: [
-      { id: 'why-arrow', label: 'Why Arrow' },
-      { id: 'quick-start', label: 'Quickstart' },
-    ],
-  },
-  {
-    title: 'Essentials',
-    items: [
-      { id: 'reactive-data', label: 'Reactive Data' },
-      { id: 'templates', label: 'Templates' },
-      { id: 'components', label: 'Components' },
-      { id: 'watching-data', label: 'Watching Data' },
-      { id: 'routing', label: 'Routing' },
-    ],
-  },
-  {
-    title: 'Examples',
-    items: [
-      { id: 'examples', label: 'Overview' },
-      ...docsExampleMeta.map((example) => ({
-        label: example.title,
-        href: playgroundExampleHref(example.id),
-      })),
-    ],
-  },
-]
-
-export function HomePage(options: { highlightCode?: boolean } = {}) {
+export function HomePage(
+  options: { highlightCode?: boolean } = {}
+) {
   const highlightCode = options.highlightCode !== false
   const nav = ScrollSpyNav(homeNavGroups)
   const ComponentsSection = highlightCode ? HighlightedComponents : Components
@@ -64,16 +33,18 @@ export function HomePage(options: { highlightCode?: boolean } = {}) {
 
   return html`
     <div>
-      ${Hero({ highlightCode })} ${nav.mobile()}
+      ${Hero({ highlightCode })}
+      <div id="home-mobile-nav-root">${nav.mobile()}</div>
 
       <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-12">
         <div class="flex gap-12">
-          ${nav.sidebar()}
+          <div id="home-sidebar-nav-root">${nav.sidebar()}</div>
           <article class="min-w-0 max-w-3xl flex-1">
             <div class="flex justify-end mb-4">
-              ${CopyPageMenu({ markdownPath: '/docs.md' })}
+              ${CopyPageMenuIsland({ markdownPath: '/docs.md' })}
             </div>
             ${WhyArrow()} ${Quickstart({ highlightCode })}
+            ${Community()}
             ${ComponentsSection()} ${ReactiveDataSection()}
             ${WatchingDataSection()} ${TemplatesSection()}
             ${Routing()} ${ExamplesSection()}

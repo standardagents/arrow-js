@@ -116,3 +116,7 @@ export const CliCommand = component(() => {
     </button>
   `
 })
+
+export function CliCommandIsland() {
+  return html`<div data-island="cli-command">${CliCommand()}</div>`
+}

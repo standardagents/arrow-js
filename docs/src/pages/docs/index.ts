@@ -4,6 +4,7 @@ import { Navigation } from './Navigation'
 import {
   WhyArrow,
   Quickstart,
+  Community,
   Components,
   HighlightedComponents,
   ReactiveData,
@@ -40,6 +41,7 @@ export function DocsPage(options: { highlightCode?: boolean } = {}) {
           </div>
 
           ${WhyArrow()} ${Quickstart({ highlightCode })}
+          ${Community()}
           ${ComponentsSection()}
 
           <div

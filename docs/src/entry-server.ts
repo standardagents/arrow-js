@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { renderToString, serializePayload } from '@arrow-js/ssr'
+import { renderToString } from '@arrow-js/ssr'
 import { createPage } from './app'
 import { htmlToMarkdown } from './html-to-markdown'
 import {
@@ -50,15 +50,11 @@ function renderHead(
 export async function renderPage(url: string) {
   const page = await createPage(url)
   const result = await renderToString(page.view)
-  const { html: _expectedHtml, ...payload } = result.payload
 
   return {
     html: result.html,
     head: renderHead(page),
-    payloadScript: serializePayload({
-      ...payload,
-      path: url,
-    }),
+    payloadScript: '',
     status: 200,
   }
 }

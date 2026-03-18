@@ -5,7 +5,7 @@ import {
   starterExampleId,
 } from '../../../play/example-meta.js'
 import { CodeBlock } from '../../components/CodeBlock'
-import { CliCommand } from '../../components/CliCommand'
+import { CliCommandIsland } from '../../components/CliCommand'
 import { highlightedSection } from '../../components/highlighted-section'
 
 /**
@@ -64,7 +64,7 @@ export function Quickstart(options: DocsContentOptions = {}) {
           metadata, and the full framework stack in one command:
         </p>
 
-        ${CliCommand()}
+        ${CliCommandIsland()}
 
         <h3 class="text-lg font-semibold text-zinc-900 dark:text-white pt-6">
           Manual setup
@@ -183,6 +183,49 @@ await hydrate(root, createApp(), readPayload())`,
           extension for VSCode to get syntax highlighting and
           autocomplete inside <code>html</code> template literals.
           Arrow also ships TypeScript definitions for full editor support.
+        </p>
+
+      </div>
+    </section>
+  `
+}
+
+export function Community() {
+  return html`
+    <section id="community" class="mb-16">
+      <h2
+        class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4"
+      >
+        Community
+      </h2>
+      <div class="space-y-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
+        <p>
+          Join the
+          <a
+            href="https://discord.gg/fBy7csvmAt"
+            class="text-arrow-550 dark:text-arrow-400 underline underline-offset-2"
+          >Arrow Discord</a>
+          to ask questions, share what you're building, and connect with
+          other developers using Arrow.
+        </p>
+        <p>
+          Follow the author
+          <a
+            href="https://x.com/intent/follow?screen_name=jpschroeder"
+            class="text-arrow-550 dark:text-arrow-400 underline underline-offset-2"
+            target="_blank"
+            rel="noopener"
+          >Justin Schroeder</a>
+          on X for updates, releases, and behind-the-scenes development.
+        </p>
+        <p>
+          Browse the source, report issues, and contribute on
+          <a
+            href="https://github.com/standardagents/arrow-js"
+            class="text-arrow-550 dark:text-arrow-400 underline underline-offset-2"
+            target="_blank"
+            rel="noopener"
+          >GitHub</a>.
         </p>
       </div>
     </section>

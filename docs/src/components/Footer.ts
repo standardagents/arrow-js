@@ -7,14 +7,14 @@ export function Footer() {
         class="max-w-7xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm"
       >
         <p>
-          Built with Arrow by
+          Built by
           <a
-            href="https://twitter.com/jpschroeder"
+            href="https://standardagents.com"
             class="text-zinc-700 dark:text-zinc-300 underline decoration-current underline-offset-2 hover:text-arrow-500 transition-colors"
             target="_blank"
             rel="noopener"
           >
-            Justin Schroeder</a
+            Standard Agents</a
           >. Open Source under MIT.
         </p>
         <div class="flex items-center gap-6">
@@ -25,6 +25,14 @@ export function Footer() {
             rel="noopener"
           >
             GitHub
+          </a>
+          <a
+            href="https://discord.gg/fBy7csvmAt"
+            class="hover:text-arrow-500 transition-colors"
+            target="_blank"
+            rel="noopener"
+          >
+            Discord
           </a>
           <a
             href="https://x.com/intent/follow?screen_name=jpschroeder"

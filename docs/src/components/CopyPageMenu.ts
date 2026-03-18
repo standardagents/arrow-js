@@ -112,3 +112,14 @@ export const CopyPageMenu = component<CopyPageMenuProps, ArrowTemplate>((props: 
     </div>
   </div>`
 })
+
+export function CopyPageMenuIsland(props: CopyPageMenuProps) {
+  return html`
+    <div
+      data-island="copy-page-menu"
+      data-markdown-path="${props.markdownPath}"
+    >
+      ${CopyPageMenu(props)}
+    </div>
+  `
+}

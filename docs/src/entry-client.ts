@@ -1,30 +1,18 @@
 import '@shikijs/twoslash/style-rich.css'
-import { hydrate, readPayload } from '@arrow-js/hydrate'
-import { createPage } from './app'
+import { Header } from './components/Header'
+import { CliCommand } from './components/CliCommand'
+import { hydrateEachIsland, hydrateIntoRoot } from './islands'
 
-type NavigatorWithConnection = Navigator & {
-  connection?: {
-    saveData?: boolean
-  }
+await hydrateIntoRoot('header-root', Header(window.location.pathname))
+await hydrateEachIsland('[data-island="cli-command"]', () => CliCommand())
+
+if (window.location.pathname.replace(/\/+$/, '') === '/api') {
+  const { hydrateApiIslands } = await import('./pages/api/islands')
+  await hydrateApiIslands()
+} else {
+  const { hydrateHomeIslands } = await import('./pages/home/islands')
+  await hydrateHomeIslands()
 }
-
-type IdleWindow = Window & typeof globalThis & {
-  requestIdleCallback?: (
-    callback: IdleRequestCallback,
-    options?: IdleRequestOptions
-  ) => number
-}
-
-const payload = readPayload()
-const root = document.getElementById('app')
-
-if (!root) {
-  throw new Error('Unable to find hydration root "app".')
-}
-
-const page = await createPage(window.location.pathname)
-
-await hydrate(root, page.view, payload)
 
 // Fix twoslash popups: use position:fixed so they escape overflow:auto parents
 document.addEventListener('mouseenter', (e) => {

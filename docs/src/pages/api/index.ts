@@ -1,7 +1,7 @@
 import { html } from '@arrow-js/core'
-import { CopyPageMenu } from '../../components/CopyPageMenu'
+import { CopyPageMenuIsland } from '../../components/CopyPageMenu'
 import { ScrollSpyNav } from '../../components/ScrollSpyNav'
-import type { NavGroup } from '../../components/ScrollSpyNav'
+import { apiNavGroups } from './nav'
 import {
   ReactiveApi,
   HighlightedReactiveApi,
@@ -35,47 +35,6 @@ import {
   HighlightedTypesReference,
 } from './content'
 
-const apiNavGroups: NavGroup[] = [
-  {
-    title: '@arrow-js/core',
-    items: [
-      { id: 'reactive', label: 'reactive()' },
-      { id: 'watch', label: 'watch()' },
-      { id: 'html', label: 'html' },
-      { id: 'component', label: 'component()' },
-      { id: 'pick', label: 'pick() / props()' },
-      { id: 'next-tick', label: 'nextTick()' },
-    ],
-  },
-  {
-    title: '@arrow-js/framework',
-    items: [
-      { id: 'render', label: 'render()' },
-      { id: 'boundary', label: 'boundary()' },
-      { id: 'to-template', label: 'toTemplate()' },
-      { id: 'render-document', label: 'renderDocument()' },
-    ],
-  },
-  {
-    title: '@arrow-js/ssr',
-    items: [
-      { id: 'render-to-string', label: 'renderToString()' },
-      { id: 'serialize-payload', label: 'serializePayload()' },
-    ],
-  },
-  {
-    title: '@arrow-js/hydrate',
-    items: [
-      { id: 'hydrate', label: 'hydrate()' },
-      { id: 'read-payload', label: 'readPayload()' },
-    ],
-  },
-  {
-    title: 'Types',
-    items: [{ id: 'types', label: 'Type Reference' }],
-  },
-]
-
 export function ApiPage(options: { highlightCode?: boolean } = {}) {
   const highlightCode = options.highlightCode !== false
   const nav = ScrollSpyNav(apiNavGroups)
@@ -100,10 +59,10 @@ export function ApiPage(options: { highlightCode?: boolean } = {}) {
 
   return html`
     <div>
-      ${nav.mobile()}
+      <div id="api-mobile-nav-root">${nav.mobile()}</div>
       <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-12">
         <div class="flex gap-12">
-          ${nav.sidebar()}
+          <div id="api-sidebar-nav-root">${nav.sidebar()}</div>
           <article class="min-w-0 max-w-3xl flex-1">
             <div class="flex items-start justify-between gap-4 mb-8">
               <h1
@@ -111,7 +70,7 @@ export function ApiPage(options: { highlightCode?: boolean } = {}) {
               >
                 API Reference
               </h1>
-              ${CopyPageMenu({ markdownPath: '/api.md' })}
+              ${CopyPageMenuIsland({ markdownPath: '/api.md' })}
             </div>
             ${ReactiveApiSection()} ${WatchApiSection()} ${HtmlApiSection()}
             ${ComponentApiSection()} ${PickApiSection()}

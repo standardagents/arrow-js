@@ -10,7 +10,7 @@ ArrowJS is a tiny, blazing-fast, type-safe reactive UI runtime built around plat
 
 Use `@arrow-js/core` when you want direct reactive DOM updates with minimal API surface. Add `@arrow-js/framework`, `@arrow-js/ssr`, and `@arrow-js/hydrate` when you need async components, server-side rendering, and client-side hydration on top of the same component model.
 
-[Documentation](https://arrow-js.com) · [API Reference](https://arrow-js.com/api)
+[Documentation](https://arrow-js.com) · [API Reference](https://arrow-js.com/api) · [Playground](https://arrow-js.com/play/) · [Discord](https://discord.gg/fBy7csvmAt)
 
 ## Core Package
 
@@ -24,7 +24,13 @@ Use `@arrow-js/core` when you want direct reactive DOM updates with minimal API 
 
 ## Install
 
-Agent skill: Equip your preferred coding agent to add Arrow to an existing project — or scaffold a new project.
+Scaffold a complete Vite 8 Arrow app with SSR, hydration, and the full framework stack:
+
+```sh
+pnpm create arrow-js@latest arrow-app
+```
+
+Agent skill: Equip your preferred coding agent to add Arrow to an existing project:
 
 ```sh
 npx @arrow-js/skill
@@ -76,6 +82,16 @@ The current project structure keeps that layering explicit:
 - `@arrow-js/framework` adds async render tracking and boundaries.
 - `@arrow-js/ssr` renders HTML and serializes async payloads on the server.
 - `@arrow-js/hydrate` adopts existing SSR HTML instead of replacing it on the client.
+
+## Editor Support
+
+Install the official [ArrowJS Syntax](https://marketplace.visualstudio.com/items?itemName=StandardAgents.arrowjs-syntax) extension for VSCode to get syntax highlighting and autocomplete inside `html` template literals.
+
+## Community
+
+- [Discord](https://discord.gg/fBy7csvmAt) — ask questions, share what you're building, and connect with other Arrow developers
+- [GitHub Issues](https://github.com/standardagents/arrow-js/issues) — report bugs and request features
+- Follow [@jpschroeder](https://x.com/intent/follow?screen_name=jpschroeder) on X for updates and releases
 
 ## Monorepo Development
 
