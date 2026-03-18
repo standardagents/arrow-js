@@ -3,6 +3,19 @@ import { Header } from './components/Header'
 import { CliCommand } from './components/CliCommand'
 import { hydrateEachIsland, hydrateIntoRoot } from './islands'
 
+type NavigatorWithConnection = Navigator & {
+  connection?: {
+    saveData?: boolean
+  }
+}
+
+type IdleWindow = Window & typeof globalThis & {
+  requestIdleCallback?: (
+    callback: IdleRequestCallback,
+    options?: IdleRequestOptions
+  ) => number
+}
+
 await hydrateIntoRoot('header-root', Header(window.location.pathname))
 await hydrateEachIsland('[data-island="cli-command"]', () => CliCommand())
 
