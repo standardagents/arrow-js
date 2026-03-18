@@ -1,0 +1,8 @@
+interface:
+  display_name: "Arrow"
+  short_description: "Work effectively with Arrow apps and packages"
+  brand_color: "#facc15"
+  default_prompt: "Use $arrow-js when working on an Arrow app, template, component, SSR flow, or hydration issue."
+
+policy:
+  allow_implicit_invocation: true

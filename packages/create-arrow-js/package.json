@@ -1,6 +1,6 @@
 {
   "name": "create-arrow-js",
-  "version": "1.0.0-alpha.9",
+  "version": "1.0.0-alpha.10",
   "type": "module",
   "bin": {
     "create-arrow-js": "./index.js"
@@ -11,6 +11,7 @@
   "files": [
     "index.js",
     "scaffold.js",
+    "versions.json",
     "template"
   ]
 }

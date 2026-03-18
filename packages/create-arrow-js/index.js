@@ -5,6 +5,7 @@ import { scaffoldArrowApp } from './scaffold.js'
 
 const args = process.argv.slice(2)
 let targetDir = ''
+const options = {}
 
 for (let index = 0; index < args.length; index += 1) {
   const arg = args[index]
@@ -19,13 +20,19 @@ for (let index = 0; index < args.length; index += 1) {
     process.exit(0)
   }
 
+  if (arg === '--skill-agent') {
+    options.skillAgent = args[index + 1] ?? ''
+    index += 1
+    continue
+  }
+
   throw new Error(`Unknown argument "${arg}".`)
 }
 
 targetDir = targetDir || 'arrow-app'
 
 try {
-  const result = await scaffoldArrowApp(targetDir)
+  const result = await scaffoldArrowApp(targetDir, options)
 
   const relativeTarget = result.relativeTargetDir === '.'
     ? result.projectName
@@ -53,7 +60,7 @@ try {
 function printHelp() {
   process.stdout.write(
     [
-      'Usage: create-arrow-js [project-name]',
+      'Usage: create-arrow-js [project-name] [--skill-agent codex|claude|both|skip]',
       '',
     ].join('\n')
   )
