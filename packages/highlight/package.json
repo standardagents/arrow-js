@@ -3,6 +3,15 @@
   "version": "1.0.0-alpha.9",
   "description": "ArrowJS-specific syntax highlighting helpers for embedded html template literals.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/standardagents/arrow-js",
+    "directory": "packages/highlight"
+  },
+  "homepage": "https://github.com/standardagents/arrow-js#readme",
+  "bugs": {
+    "url": "https://github.com/standardagents/arrow-js/issues"
+  },
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

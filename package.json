@@ -2,6 +2,14 @@
   "name": "arrow-workspace",
   "version": "1.0.0-alpha.9",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/standardagents/arrow-js"
+  },
+  "homepage": "https://github.com/standardagents/arrow-js#readme",
+  "bugs": {
+    "url": "https://github.com/standardagents/arrow-js/issues"
+  },
   "packageManager": "pnpm@10.14.0",
   "type": "module",
   "engines": {

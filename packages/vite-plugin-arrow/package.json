@@ -2,6 +2,15 @@
   "name": "@arrow-js/vite-plugin-arrow",
   "version": "1.0.0-alpha.9",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/standardagents/arrow-js",
+    "directory": "packages/vite-plugin-arrow"
+  },
+  "homepage": "https://github.com/standardagents/arrow-js#readme",
+  "bugs": {
+    "url": "https://github.com/standardagents/arrow-js/issues"
+  },
   "exports": {
     ".": "./src/index.js"
   }

@@ -4,6 +4,15 @@
   "description": "Reactivity without the framework.",
   "author": "Justin Schroeder <justin@wearebraid.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/standardagents/arrow-js",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/standardagents/arrow-js#readme",
+  "bugs": {
+    "url": "https://github.com/standardagents/arrow-js/issues"
+  },
   "main": "dist/index.min.mjs",
   "module": "dist/index.min.mjs",
   "types": "dist/index.d.ts",

@@ -7,26 +7,17 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      npm_tag: ${{ steps.release.outputs.npm_tag }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
-
-      - name: Install latest npm
-        run: npm install -g npm@latest
 
       - name: Determine release version and npm tag
         id: release
@@ -52,49 +43,283 @@ jobs:
             exit 1
           fi
 
+  publish-core:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - name: Install latest npm
+        run: npm install -g npm@latest
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
       - name: Sync package versions to tag
-        run: node scripts/release.mjs sync --version "${{ steps.release.outputs.version }}"
-
+        run: node scripts/release.mjs sync --version "${{ needs.prepare.outputs.version }}"
       - name: Build core runtime
         run: pnpm --filter @arrow-js/core build
-
-      - name: Pack and publish packages
-        env:
-          NPM_TAG: ${{ steps.release.outputs.npm_tag }}
+      - name: Publish @arrow-js/core
+        working-directory: packages/core
         shell: bash
         run: |
-          set -euo pipefail
-          PACK_DIR="$RUNNER_TEMP/packs"
-          mkdir -p "$PACK_DIR"
+          for attempt in 1 2 3; do
+            pnpm publish --tag "${{ needs.prepare.outputs.npm_tag }}" --access public --no-git-checks && exit 0
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1
 
-          publish_pkg() {
-            local dir="$1"
-            pushd "$dir" >/dev/null
-            local tarball
-            tarball=$(
-              pnpm pack --pack-destination "$PACK_DIR" --json \
-                | node -e "let data='';process.stdin.on('data',chunk=>data+=chunk);process.stdin.on('end',()=>process.stdout.write(JSON.parse(data).filename));"
-            )
-            popd >/dev/null
+  publish-highlight:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - name: Install latest npm
+        run: npm install -g npm@latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Sync package versions to tag
+        run: node scripts/release.mjs sync --version "${{ needs.prepare.outputs.version }}"
+      - name: Publish @arrow-js/highlight
+        working-directory: packages/highlight
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm publish --tag "${{ needs.prepare.outputs.npm_tag }}" --access public --no-git-checks && exit 0
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1
 
-            for attempt in 1 2 3; do
-              npm publish "$tarball" --tag "$NPM_TAG" --access public && return 0
-              echo "Publish attempt $attempt failed for $dir, retrying in 5s..."
-              sleep 5
-            done
+  publish-vite-plugin-arrow:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - name: Install latest npm
+        run: npm install -g npm@latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Sync package versions to tag
+        run: node scripts/release.mjs sync --version "${{ needs.prepare.outputs.version }}"
+      - name: Publish @arrow-js/vite-plugin-arrow
+        working-directory: packages/vite-plugin-arrow
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm publish --tag "${{ needs.prepare.outputs.npm_tag }}" --access public --no-git-checks && exit 0
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1
 
-            echo "Failed to publish $dir" >&2
-            return 1
-          }
+  publish-skill:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - name: Install latest npm
+        run: npm install -g npm@latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Sync package versions to tag
+        run: node scripts/release.mjs sync --version "${{ needs.prepare.outputs.version }}"
+      - name: Publish @arrow-js/skill
+        working-directory: packages/skill
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm publish --tag "${{ needs.prepare.outputs.npm_tag }}" --access public --no-git-checks && exit 0
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1
 
-          publish_pkg packages/core
-          publish_pkg packages/framework
-          publish_pkg packages/highlight
-          publish_pkg packages/hydrate
-          publish_pkg packages/ssr
-          publish_pkg packages/vite-plugin-arrow
-          publish_pkg packages/skill
-          publish_pkg packages/create-arrow-js
+  publish-framework:
+    needs:
+      - prepare
+      - publish-core
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - name: Install latest npm
+        run: npm install -g npm@latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Sync package versions to tag
+        run: node scripts/release.mjs sync --version "${{ needs.prepare.outputs.version }}"
+      - name: Publish @arrow-js/framework
+        working-directory: packages/framework
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm publish --tag "${{ needs.prepare.outputs.npm_tag }}" --access public --no-git-checks && exit 0
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1
+
+  publish-ssr:
+    needs:
+      - prepare
+      - publish-framework
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - name: Install latest npm
+        run: npm install -g npm@latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Sync package versions to tag
+        run: node scripts/release.mjs sync --version "${{ needs.prepare.outputs.version }}"
+      - name: Publish @arrow-js/ssr
+        working-directory: packages/ssr
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm publish --tag "${{ needs.prepare.outputs.npm_tag }}" --access public --no-git-checks && exit 0
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1
+
+  publish-hydrate:
+    needs:
+      - prepare
+      - publish-core
+      - publish-framework
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - name: Install latest npm
+        run: npm install -g npm@latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Sync package versions to tag
+        run: node scripts/release.mjs sync --version "${{ needs.prepare.outputs.version }}"
+      - name: Publish @arrow-js/hydrate
+        working-directory: packages/hydrate
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm publish --tag "${{ needs.prepare.outputs.npm_tag }}" --access public --no-git-checks && exit 0
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1
+
+  publish-create-arrow-js:
+    needs:
+      - prepare
+      - publish-core
+      - publish-framework
+      - publish-highlight
+      - publish-hydrate
+      - publish-ssr
+      - publish-vite-plugin-arrow
+      - publish-skill
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - name: Install latest npm
+        run: npm install -g npm@latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Sync package versions to tag
+        run: node scripts/release.mjs sync --version "${{ needs.prepare.outputs.version }}"
+      - name: Publish create-arrow-js
+        working-directory: packages/create-arrow-js
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm publish --tag "${{ needs.prepare.outputs.npm_tag }}" --access public --no-git-checks && exit 0
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          exit 1

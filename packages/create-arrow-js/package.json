@@ -2,6 +2,15 @@
   "name": "create-arrow-js",
   "version": "1.0.0-alpha.10",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/standardagents/arrow-js",
+    "directory": "packages/create-arrow-js"
+  },
+  "homepage": "https://github.com/standardagents/arrow-js#readme",
+  "bugs": {
+    "url": "https://github.com/standardagents/arrow-js/issues"
+  },
   "bin": {
     "create-arrow-js": "./index.js"
   },
