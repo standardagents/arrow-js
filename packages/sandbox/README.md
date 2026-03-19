@@ -28,30 +28,38 @@ pnpm add @arrow-js/sandbox
 ```ts
 import { sandbox } from '@arrow-js/sandbox'
 
-const code = `
-  const state = reactive({ count: 0 })
+const view = sandbox({
+  source: {
+    'main.ts': `
+      const state = reactive({ count: 0 })
 
-  export default html\`<button @click="\${() => state.count++}">
-    Clicked \${() => state.count}
-  </button>\`
-`
+      export default html\`<button @click="\${() => state.count++}">
+        Clicked \${() => state.count}
+      </button>\`
+    `,
+  },
+})
 
-await sandbox(code, document.getElementById('app')!)
+view(document.getElementById('app')!)
 ```
 
-Arrow identifiers such as `html` and `reactive` can be auto-injected when they are used as free identifiers. Explicit user imports are preserved.
+Arrow identifiers such as `html`, `reactive`, `component`, `pick`, and `props` can be auto-injected when they are used as free identifiers. Explicit user imports are preserved.
 
 ## Multi-file modules
 
 ```ts
-await sandbox('', mountPoint, {
-  entry: '/App.ts',
-  files: {
-    '/state.ts': `
+const view = sandbox({
+  source: {
+    'main.ts': `
+      import App from './App.ts'
+
+      export default App
+    `,
+    'state.ts': `
       import { reactive } from '@arrow-js/core'
       export const state = reactive({ count: 0 })
     `,
-    '/App.ts': `
+    'App.ts': `
       import { html } from '@arrow-js/core'
       import { state } from './state.ts'
 
@@ -63,6 +71,8 @@ await sandbox('', mountPoint, {
     `,
   },
 })
+
+view(mountPoint)
 ```
 
 Supported virtual imports:
@@ -76,26 +86,62 @@ Unsupported imports fail fast. There is no network fetch fallback.
 ## API
 
 ```ts
-export interface SandboxOptions {
-  files?: Record<string, string>
-  entry?: string
+export interface SandboxProps {
+  source: Record<string, string>
+  shadowDOM?: boolean
   onError?: (error: Error | string) => void
   debug?: boolean
 }
 
-export interface SandboxInstance {
-  destroy(): void
-  update(code: string, options?: Partial<SandboxOptions>): Promise<void>
+export interface SandboxEvents {
+  output?: (payload: unknown) => void
 }
 
 export function sandbox(
-  code: string,
-  mountPoint: Element,
-  options?: SandboxOptions
-): Promise<SandboxInstance>
+  props: SandboxProps,
+  events?: SandboxEvents
+): ArrowTemplate
 ```
 
-`update()` recompiles and boots a fresh VM before swapping the live instance, so a failed update does not partially mutate the current mount.
+`sandbox()` returns an Arrow template. You can mount it directly, or compose it inside a larger Arrow template:
+
+```ts
+html`<section>${sandbox({ source })}</section>`
+```
+
+The rendered host element is always `<arrow-sandbox>`.
+
+Source requirements:
+
+- exactly one entry file: `main.ts` or `main.js`
+- optional `main.css`, injected into the sandbox host root
+- all other entries are virtual JS/TS/MJS modules
+
+`shadowDOM` defaults to `true`. When enabled, the sandbox mounts into an open shadow root on `<arrow-sandbox>`. When disabled, it mounts into the element’s light DOM instead.
+
+### Sandbox output bridge
+
+The optional `events.output` callback receives values emitted from inside QuickJS through the global `output(payload)` function:
+
+```ts
+const view = sandbox(
+  {
+    source: {
+      'main.ts': `
+        output({ status: 'ready' })
+        export default html\`<div>Sandbox Ready</div>\`
+      `,
+    },
+  },
+  {
+    output(payload) {
+      console.log(payload)
+    },
+  }
+)
+```
+
+`output(payload)` accepts one payload value. The payload is serialized to plain data before it crosses from the VM into the host.
 
 ## Security model
 
@@ -142,14 +188,15 @@ This bridge is designed to avoid ambient page credentials and host DOM access. I
 - event bindings such as `@click`
 - nested elements
 - sync `component()` composition
+- component emits via `component((props, emit) => ...)` and parent listeners via `Child(props, { eventName })`
 - async `component()` composition with VM-owned fallback/render/error handling
 - `pick()` / `props()` narrowing for component props
+- global `output(payload)` host bridge
 - reactive updates inside the VM
 - restricted bridged `fetch()` requests and JSON/text response handling
 - bridged timer callbacks via `setTimeout` and `setInterval`
 - arrays and conditional child regions
 - multi-root templates without a wrapper element
-- `update()` and `destroy()` lifecycle control
 
 ## Unsupported or partial
 

@@ -30,6 +30,7 @@
     "sync:vm": "node build/sync-vm-sources.mjs"
   },
   "dependencies": {
+    "@arrow-js/core": "workspace:*",
     "acorn": "^8.16.0",
     "acorn-walk": "^8.3.4",
     "magic-string": "^0.30.21",

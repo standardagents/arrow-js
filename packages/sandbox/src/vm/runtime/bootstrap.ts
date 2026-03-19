@@ -3,12 +3,14 @@ import {
   dispatchMessage,
   initSandbox,
   log,
+  output,
 } from './runtime'
 
 const globalObject = globalThis as any as typeof globalThis & {
   __arrowSandboxTemplate?: typeof createTemplateInstance
   __arrowSandboxInit?: typeof initSandbox
   __arrowSandboxDispatch?: typeof dispatchMessage
+  output?: typeof output
 }
 
 const sandboxConsole = {
@@ -42,4 +44,5 @@ const sandboxConsole = {
 globalObject.__arrowSandboxTemplate = createTemplateInstance
 globalObject.__arrowSandboxInit = initSandbox
 globalObject.__arrowSandboxDispatch = dispatchMessage
+globalObject.output = output
 ;(globalThis as any).console = sandboxConsole

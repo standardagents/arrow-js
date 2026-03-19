@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { component, html, nextTick, pick, reactive } from '..'
-import type { Props } from '..'
+import type { Emit, Props } from '..'
 
 const text = (node: Node) => node.textContent?.replace(/\s+/g, '') ?? ''
 
@@ -276,5 +276,61 @@ describe('component', () => {
     expect(data.count).toBe(2)
     expect(button.textContent).toBe('2')
     expect(data.other).toBe('value')
+  })
+
+  it('emits payloads to parent listeners without recreating child state', async () => {
+    const data = reactive({ count: 1, second: false })
+    const first = vi.fn()
+    const second = vi.fn()
+    let created = 0
+
+    const Child = component(
+      (
+        props: Props<{ count: number }>,
+        emit: Emit<{ color: string }>
+      ) => {
+        const local = reactive({ id: ++created })
+        return html`<button
+          @click="${() => emit('color', `${props.count}|${local.id}`)}"
+        >emit</button>`
+      }
+    )
+    const root = document.createElement('div')
+
+    html`<main>
+      ${() =>
+        Child(data, {
+          color: data.second ? second : first,
+        })}
+    </main>`(root)
+
+    let button = root.querySelector('button') as HTMLButtonElement
+    button.click()
+    expect(first).toHaveBeenCalledWith('1|1')
+    expect(created).toBe(1)
+
+    data.second = true
+    await nextTick()
+
+    button = root.querySelector('button') as HTMLButtonElement
+    button.click()
+    expect(second).toHaveBeenCalledWith('1|1')
+    expect(created).toBe(1)
+  })
+
+  it('supports emits for components without props', () => {
+    const ready = vi.fn()
+    const Child = component(
+      (_props: undefined, emit: Emit<{ ready: string }>) =>
+        html`<button @click="${() => emit('ready', 'ok')}">go</button>`
+    )
+    const root = document.createElement('div')
+
+    html`<main>${Child(undefined, { ready })}</main>`(root)
+
+    const button = root.querySelector('button') as HTMLButtonElement
+    button.click()
+
+    expect(ready).toHaveBeenCalledWith('ok')
   })
 })

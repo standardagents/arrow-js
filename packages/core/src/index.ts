@@ -30,6 +30,9 @@ export type {
   Component,
   ComponentCall,
   ComponentWithProps,
+  Emit,
+  EventMap,
+  Events,
   Props,
 } from './component'
 

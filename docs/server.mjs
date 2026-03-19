@@ -12,11 +12,6 @@ const port = Number(process.env.PORT ?? 4174)
 const templatePath = path.resolve(__dirname, 'index.html')
 const clientDistPath = path.resolve(__dirname, 'dist/client')
 const serverEntryPath = path.resolve(__dirname, 'dist/server/entry-server.js')
-const playgroundRuntimePath = path.resolve(
-  __dirname,
-  '../packages/core/dist/index.mjs'
-)
-
 const htmlEntryRedirects = new Map([
   ['/play', '/play/'],
   ['/play/preview', '/play/preview.html'],
@@ -243,10 +238,6 @@ loadPlayStore()
 
 async function resolveStaticFile(url) {
   const pathname = new URL(url, 'http://arrow.local').pathname
-
-  if (pathname === '/play/arrow-runtime.js') {
-    return playgroundRuntimePath
-  }
 
   if (pathname === '/') {
     return null

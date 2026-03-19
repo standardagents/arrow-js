@@ -1,8 +1,12 @@
-export interface SandboxOptions {
-  files?: Record<string, string>
-  entry?: string
+export interface SandboxProps {
+  source: Record<string, string>
+  shadowDOM?: boolean
   onError?: (error: Error | string) => void
   debug?: boolean
+}
+
+export interface SandboxEvents {
+  output?: (payload: unknown) => void
 }
 
 export type SandboxConsoleMethod =
@@ -227,8 +231,7 @@ export type VmToHostMessage =
       method: SandboxConsoleMethod
       args: unknown[]
     }
-
-export interface SandboxInstance {
-  destroy(): void
-  update(code: string, options?: Partial<SandboxOptions>): Promise<void>
-}
+  | {
+      type: 'output'
+      payload: unknown
+    }

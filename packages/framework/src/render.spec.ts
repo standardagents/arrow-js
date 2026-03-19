@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { component, html, nextTick, reactive } from '@arrow-js/core'
+import type { Emit } from '@arrow-js/core'
 import { boundary, render } from '@arrow-js/framework'
 import { hydrate } from '@arrow-js/hydrate'
 import { renderToString } from '@arrow-js/ssr'
@@ -37,6 +38,42 @@ describe('framework render', () => {
     await render(root, html`<section>${child()}</section>`)
 
     expect(root.innerHTML).toContain('nested ready')
+  })
+
+  it('passes emit handlers through async components', async () => {
+    const root = document.createElement('div')
+    const state = reactive({
+      color: 'none',
+    })
+    const ColorButton = component(async (
+      _props: undefined,
+      emit: Emit<{ color: string }>
+    ) => {
+      await delay()
+      return html`<button
+        id="async-color"
+        @click="${() => emit('color', 'green')}"
+      >
+        emit
+      </button>`
+    })
+
+    await render(
+      root,
+      html`<div>
+        ${ColorButton(undefined, {
+          color: (value) => {
+            state.color = value
+          },
+        })}
+        <span id="async-color-value">${() => state.color}</span>
+      </div>`
+    )
+
+    ;(root.querySelector('#async-color') as HTMLButtonElement).click()
+    await nextTick()
+
+    expect(root.querySelector('#async-color-value')?.textContent).toBe('green')
   })
 })
 

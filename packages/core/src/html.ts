@@ -93,7 +93,7 @@ export interface Chunk {
   bkn?: Chunk
   v?: Array<[Element, string]> | null
   u?: Array<() => void> | null
-  s?: ReturnType<typeof createPropsProxy>[1]
+  s?: ReturnType<typeof createPropsProxy>[2]
   mk?: number
   next?: Chunk
 }
@@ -762,6 +762,7 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
         const keyedChunk = keyedChunks[key]
         if (keyedChunk.s?.[1] === renderable.h) {
           if (keyedChunk.s[0] !== renderable.p) keyedChunk.s[0] = renderable.p
+          if (keyedChunk.s[2] !== renderable.e) keyedChunk.s[2] = renderable.e
           if (keyedChunk === prev) return prev
           if (anchor) {
             moveDOMRef(keyedChunk.ref, anchor.parentNode, anchor.nextSibling)
@@ -773,6 +774,7 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
         }
       } else if (isChunk(prev) && prev.s?.[1] === renderable.h) {
         if (prev.s[0] !== renderable.p) prev.s[0] = renderable.p
+        if (prev.s[2] !== renderable.e) prev.s[2] = renderable.e
         if (prev.k !== renderable.k) {
           forgetChunk(prev)
           prev.k = renderable.k
@@ -864,14 +866,18 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
   }
 
   function renderComponent(renderable: ComponentCall): [DocumentFragment, Chunk] {
-    const [props, box] = createPropsProxy(renderable.p, renderable.h)
+    const [props, emit, box] = createPropsProxy(
+      renderable.p,
+      renderable.h,
+      renderable.e
+    )
     const cleanups: Array<() => void> = []
     const previousCollector = swapCleanupCollector(cleanups)
     let template: InternalTemplate
     let fragment: DocumentFragment
 
     try {
-      template = renderable.h(props) as InternalTemplate
+      template = renderable.h(props, emit) as InternalTemplate
       fragment = template() as DocumentFragment
     } finally {
       swapCleanupCollector(previousCollector)

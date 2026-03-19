@@ -1,13 +1,225 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { sandbox } from '@arrow-js/sandbox'
+import { html } from '@arrow-js/core'
+import { compileSandboxGraph } from './compiler'
+import {
+  sandbox as renderSandbox,
+  type SandboxEvents,
+  type SandboxProps,
+} from '@arrow-js/sandbox'
+
+const realSetTimeout = globalThis.setTimeout.bind(globalThis)
 
 function waitForSandbox() {
-  return new Promise((resolve) => setTimeout(resolve, 25))
+  return new Promise((resolve) => realSetTimeout(resolve, 25))
 }
 
 async function flushSandboxJobs() {
   await Promise.resolve()
   await Promise.resolve()
+}
+
+async function waitForSandboxHost(host: Element | null) {
+  if (!(host instanceof HTMLElement)) {
+    throw new Error('Sandbox host element was not rendered.')
+  }
+
+  customElements.upgrade?.(host)
+  ;(host as unknown as { connectedCallback?: () => void }).connectedCallback?.()
+
+  if (host.dataset.ready === 'true') {
+    return
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = realSetTimeout(() => {
+      cleanup()
+      reject(
+        new Error(
+          `Sandbox host did not become ready. ctor=${host.constructor.name} host=${host.outerHTML} shadow=${host.shadowRoot?.innerHTML ?? 'none'}`
+        )
+      )
+    }, 1000)
+    const onReady = () => {
+      cleanup()
+      resolve()
+    }
+    const onError = (event: Event) => {
+      cleanup()
+      if (event instanceof CustomEvent) {
+        reject(event.detail)
+        return
+      }
+      reject(new Error('Sandbox host failed to boot.'))
+    }
+    const cleanup = () => {
+      clearTimeout(timeout)
+      host.removeEventListener('sandbox-ready', onReady)
+      host.removeEventListener('sandbox-error', onError)
+    }
+
+    host.addEventListener('sandbox-ready', onReady, { once: true })
+    host.addEventListener('sandbox-error', onError, { once: true })
+  })
+}
+
+function getSandboxHost(root: ParentNode) {
+  if (!('querySelector' in root)) {
+    throw new Error('Sandbox root does not support querySelector.')
+  }
+
+  const host = root.querySelector('arrow-sandbox')
+  if (!(host instanceof HTMLElement)) {
+    throw new Error('Sandbox host element was not rendered.')
+  }
+
+  return host
+}
+
+function getSandboxRenderRoot(host: HTMLElement) {
+  if (host.shadowRoot) {
+    const root = host.shadowRoot.querySelector('div')
+    if (!(root instanceof HTMLDivElement)) {
+      throw new Error('Sandbox shadow render root was not created.')
+    }
+    return root
+  }
+
+  const root = Array.from(host.children).find(
+    (child) => child instanceof HTMLDivElement
+  )
+  if (!(root instanceof HTMLDivElement)) {
+    throw new Error('Sandbox light DOM render root was not created.')
+  }
+  return root
+}
+
+function destroySandboxMount(mountPoint: Element) {
+  for (const host of Array.from(mountPoint.querySelectorAll('arrow-sandbox'))) {
+    if (!(host instanceof HTMLElement)) continue
+    customElements.upgrade?.(host)
+    ;(host as unknown as { disconnectedCallback?: () => void })
+      .disconnectedCallback?.()
+  }
+
+  mountPoint.replaceChildren()
+}
+
+interface LegacySandboxOptions extends Omit<SandboxProps, 'source'> {
+  entry?: string
+  files?: Record<string, string>
+}
+
+interface LegacySandboxInstance {
+  destroy(): void
+  update(code: string, options?: Partial<LegacySandboxOptions>): Promise<void>
+}
+
+function stripLeadingSlash(value: string) {
+  return value.replace(/^\/+/, '')
+}
+
+function buildLegacySandboxProps(
+  code: string,
+  options: LegacySandboxOptions = {}
+): SandboxProps {
+  const source: Record<string, string> = {}
+
+  for (const [name, value] of Object.entries(options.files ?? {})) {
+    source[stripLeadingSlash(name)] = value
+  }
+
+  if (!options.files) {
+    source['main.ts'] = code
+  } else {
+    const entry = stripLeadingSlash(options.entry ?? 'main.ts')
+    const entrySource = code.trim() ? code : source[entry]
+    if (entrySource) {
+      source[entry] = entrySource
+    }
+
+    if (entry !== 'main.ts' && entry !== 'main.js') {
+      const mainEntry = entry.endsWith('.js') ? 'main.js' : 'main.ts'
+      source[mainEntry] = `import Entry from './${entry}'
+
+export default Entry`
+    }
+  }
+
+  return {
+    debug: options.debug,
+    onError: options.onError,
+    shadowDOM: options.shadowDOM ?? false,
+    source,
+  }
+}
+
+async function sandbox(
+  code: string,
+  mountPoint: Element,
+  options: LegacySandboxOptions = {},
+  events?: SandboxEvents
+): Promise<LegacySandboxInstance> {
+  let currentCode = code
+  let currentOptions = options
+  let currentEvents = events
+
+  const mount = async (
+    nextCode = currentCode,
+    nextOptions = currentOptions,
+    nextEvents = currentEvents
+  ) => {
+    currentCode = nextCode
+    currentOptions = nextOptions
+    currentEvents = nextEvents
+    const props = buildLegacySandboxProps(currentCode, currentOptions)
+    compileSandboxGraph(props)
+
+    let mountError: unknown
+    let mounting = true
+    const providedOnError = props.onError
+
+    destroySandboxMount(mountPoint)
+    renderSandbox(
+      {
+        ...props,
+        onError(error) {
+          if (mounting) {
+            mountError = error
+          }
+          providedOnError?.(error)
+        },
+      },
+      currentEvents
+    )(mountPoint)
+    await flushSandboxJobs()
+    await waitForSandboxHost(mountPoint.querySelector('arrow-sandbox'))
+    mounting = false
+
+    if (mountError) {
+      throw mountError
+    }
+  }
+
+  await mount()
+
+  return {
+    destroy() {
+      destroySandboxMount(mountPoint)
+    },
+    async update(code, options = {}) {
+      const nextOptions: LegacySandboxOptions = {
+        ...currentOptions,
+        ...options,
+        entry: options.entry ?? currentOptions.entry,
+        files: options.files ?? currentOptions.files,
+        onError: options.onError ?? currentOptions.onError,
+        debug: options.debug ?? currentOptions.debug,
+        shadowDOM: options.shadowDOM ?? currentOptions.shadowDOM,
+      }
+
+      await mount(code, nextOptions, currentEvents)
+    },
+  }
 }
 
 function createMockFetchResponse(
@@ -56,6 +268,110 @@ describe('@arrow-js/sandbox', () => {
     expect(button?.getAttribute('onclick')).toBe(null)
 
     instance.destroy()
+  })
+
+  it('mounts as an Arrow template inside a host template', async () => {
+    const root = document.createElement('div')
+
+    html`<section>${renderSandbox({
+      source: {
+        'main.ts': `
+          const state = reactive({ count: 0 })
+          export default html\`<button @click="\${() => state.count++}">Count \${() => state.count}</button>\`
+        `,
+      },
+    })}</section>`(root)
+    const host = getSandboxHost(root)
+    await waitForSandboxHost(host)
+    const button = host.shadowRoot?.querySelector('button') as HTMLButtonElement
+    expect(button.textContent).toBe('Count 0')
+
+    button.click()
+    await waitForSandbox()
+
+    expect(button.textContent).toBe('Count 1')
+  })
+
+  it('injects main.css into the shadow root by default', async () => {
+    const root = document.createElement('div')
+
+    renderSandbox({
+      source: {
+        'main.ts': `
+          export default html\`<button class="probe">ready</button>\`
+        `,
+        'main.css': `
+          :host {
+            display: block;
+          }
+
+          .probe {
+            color: red;
+          }
+        `,
+      },
+    })(root)
+
+    const host = getSandboxHost(root)
+    await waitForSandboxHost(host)
+
+    expect(host.shadowRoot).not.toBeNull()
+    expect(host.shadowRoot?.querySelector('style')?.textContent).toContain(
+      '.probe'
+    )
+    expect(host.shadowRoot?.querySelector('button')?.textContent).toBe('ready')
+  })
+
+  it('injects main.css into the light DOM when shadowDOM is false', async () => {
+    const root = document.createElement('div')
+
+    renderSandbox({
+      shadowDOM: false,
+      source: {
+        'main.ts': `
+          export default html\`<button class="probe">ready</button>\`
+        `,
+        'main.css': '.probe { color: blue; }',
+      },
+    })(root)
+
+    const host = getSandboxHost(root)
+    await waitForSandboxHost(host)
+
+    expect(host.shadowRoot).toBeNull()
+    expect(host.querySelector('style')?.textContent).toContain('.probe')
+    expect(getSandboxRenderRoot(host).querySelector('button')?.textContent).toBe(
+      'ready'
+    )
+  })
+
+  it('requires exactly one main entry file', async () => {
+    const root = document.createElement('div')
+
+    renderSandbox({
+      source: {
+        'App.ts': `export default html\`<div>missing entry</div>\``,
+      },
+    })(root)
+
+    await expect(waitForSandboxHost(getSandboxHost(root))).rejects.toThrow(
+      /exactly one entry file: "main\.ts" or "main\.js"/i
+    )
+  })
+
+  it('rejects sandbox sources that provide both main.ts and main.js', async () => {
+    const root = document.createElement('div')
+
+    renderSandbox({
+      source: {
+        'main.ts': `export default html\`<div>ts</div>\``,
+        'main.js': `export default html\`<div>js</div>\``,
+      },
+    })(root)
+
+    await expect(waitForSandboxHost(getSandboxHost(root))).rejects.toThrow(
+      /exactly one entry file: "main\.ts" or "main\.js"/i
+    )
   })
 
   it('updates reactive text through the VM event path', async () => {
@@ -137,6 +453,41 @@ describe('@arrow-js/sandbox', () => {
     await waitForSandbox()
 
     expect(root.querySelector('span')?.textContent).toBe('1')
+    instance.destroy()
+  })
+
+  it('supports sandbox component emits with parent-provided listeners', async () => {
+    const root = document.createElement('div')
+
+    const instance = await sandbox(
+      `
+        const state = reactive({ color: 'none' })
+
+        const ColorButton = component(
+          (_props, emit) => html\`
+            <button @click="\${() => emit('color', 'red')}">Emit</button>
+          \`
+        )
+
+        export default html\`
+          <div>
+            \${ColorButton(undefined, {
+              color: (value) => {
+                state.color = value
+              },
+            })}
+            <span>\${() => state.color}</span>
+          </div>
+        \`
+      `,
+      root
+    )
+
+    const button = root.querySelector('button') as HTMLButtonElement
+    button.click()
+    await waitForSandbox()
+
+    expect(root.querySelector('span')?.textContent).toBe('red')
     instance.destroy()
   })
 
@@ -279,6 +630,27 @@ describe('@arrow-js/sandbox', () => {
 
     expect(root.textContent).toBe('1')
     instance.destroy()
+  })
+
+  it('forwards sandbox output payloads through the optional output event', async () => {
+    const root = document.createElement('div')
+    const output = vi.fn()
+
+    renderSandbox(
+      {
+        source: {
+          'main.ts': `
+            output({ color: 'red' })
+            export default html\`<div>ok</div>\`
+          `,
+        },
+      },
+      { output }
+    )(root)
+    await waitForSandboxHost(getSandboxHost(root))
+
+    expect(output).toHaveBeenCalledTimes(1)
+    expect(output).toHaveBeenCalledWith({ color: 'red' })
   })
 
   it('supports sandboxed fetch JSON responses with safe host defaults', async () => {
@@ -616,16 +988,17 @@ describe('@arrow-js/sandbox', () => {
       root
     )
 
-    expect(root.children.length).toBe(2)
-    expect(root.firstElementChild?.tagName).toBe('BUTTON')
-    expect(root.lastElementChild?.tagName).toBe('SPAN')
-    expect(root.querySelector('span')?.textContent).toBe('0')
+    const renderRoot = getSandboxRenderRoot(getSandboxHost(root))
+    expect(renderRoot.children.length).toBe(2)
+    expect(renderRoot.firstElementChild?.tagName).toBe('BUTTON')
+    expect(renderRoot.lastElementChild?.tagName).toBe('SPAN')
+    expect(renderRoot.querySelector('span')?.textContent).toBe('0')
 
-    const button = root.querySelector('button') as HTMLButtonElement
+    const button = renderRoot.querySelector('button') as HTMLButtonElement
     button.click()
     await waitForSandbox()
 
-    expect(root.querySelector('span')?.textContent).toBe('1')
+    expect(renderRoot.querySelector('span')?.textContent).toBe('1')
     instance.destroy()
   })
 
@@ -724,7 +1097,7 @@ describe('@arrow-js/sandbox', () => {
     const message = typeof payload === 'string' ? payload : payload?.message
 
     expect(message).toMatch(/not a number/i)
-    expect(message).toMatch(/entry\.ts:\d+:\d+/i)
+    expect(message).toMatch(/main\.ts:\d+:\d+/i)
     instance.destroy()
   })
 
@@ -769,7 +1142,7 @@ describe('@arrow-js/sandbox', () => {
           call[0] === 'trace marker' &&
           call.some(
             (value) =>
-              typeof value === 'string' && /entry\.ts:\d+:\d+/i.test(value)
+              typeof value === 'string' && /main\.ts:\d+:\d+/i.test(value)
           )
       )
     ).toBe(true)

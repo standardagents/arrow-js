@@ -5,6 +5,9 @@ export default defineConfig({
   root: fileURLToPath(new URL('./', import.meta.url)),
   resolve: {
     alias: {
+      '@arrow-js/core': fileURLToPath(
+        new URL('../../core/src/index.ts', import.meta.url)
+      ),
       '@arrow-js/sandbox': fileURLToPath(
         new URL('../src/index.ts', import.meta.url)
       ),

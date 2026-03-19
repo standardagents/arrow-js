@@ -51,16 +51,30 @@ declare module '@arrow-js/core' {
     [P in keyof T]: T[P] extends ReactiveTarget ? Props<T[P]> | T[P] : T[P]
   }
 
+  export type EventMap = Record<string, unknown>
+
+  export type Events<T extends EventMap> = {
+    [K in keyof T]?: (payload: T[K]) => void
+  }
+
+  export type Emit<T extends EventMap> = <K extends keyof T>(
+    event: K,
+    payload: T[K]
+  ) => void
+
   export interface ComponentCall {
     key: (key: string | number | undefined) => ComponentCall
   }
 
-  export interface Component {
-    (): ComponentCall
+  export interface Component<TEvents extends EventMap = EventMap> {
+    (props?: undefined, events?: Events<TEvents>): ComponentCall
   }
 
-  export interface ComponentWithProps<T extends ReactiveTarget> {
-    <S extends Props<T>>(props: S): ComponentCall
+  export interface ComponentWithProps<
+    T extends ReactiveTarget,
+    TEvents extends EventMap = EventMap,
+  > {
+    <S extends Props<T>>(props: S, events?: Events<TEvents>): ComponentCall
   }
 
   export interface Computed<TValue> {
@@ -70,12 +84,25 @@ declare module '@arrow-js/core' {
   export interface AsyncComponentOptions<
     T extends ReactiveTarget,
     TValue,
+    TEvents extends EventMap = EventMap,
     TSnapshot = TValue,
   > {
     fallback?: unknown
-    onError?: (error: unknown, props: Props<T>) => unknown
-    render?: (value: TValue, props: Props<T>) => unknown
-    serialize?: (value: TValue, props: Props<T>) => TSnapshot
+    onError?: (
+      error: unknown,
+      props: Props<T>,
+      emit: Emit<TEvents>
+    ) => unknown
+    render?: (
+      value: TValue,
+      props: Props<T>,
+      emit: Emit<TEvents>
+    ) => unknown
+    serialize?: (
+      value: TValue,
+      props: Props<T>,
+      emit: Emit<TEvents>
+    ) => TSnapshot
     deserialize?: (snapshot: TSnapshot, props: Props<T>) => TValue
     idPrefix?: string
   }
@@ -102,17 +129,40 @@ declare module '@arrow-js/core' {
   export function nextTick(fn?: CallableFunction): Promise<unknown>
 
   export function component(factory: () => ArrowTemplate): Component
+  export function component<TEvents extends EventMap>(
+    factory: (props: undefined, emit: Emit<TEvents>) => ArrowTemplate
+  ): Component<TEvents>
   export function component<T extends ReactiveTarget>(
     factory: (props: Props<T>) => ArrowTemplate
   ): ComponentWithProps<T>
+  export function component<T extends ReactiveTarget, TEvents extends EventMap>(
+    factory: (props: Props<T>, emit: Emit<TEvents>) => ArrowTemplate
+  ): ComponentWithProps<T, TEvents>
   export function component<TValue, TSnapshot = TValue>(
     factory: () => Promise<TValue> | TValue,
-    options?: AsyncComponentOptions<ReactiveTarget, TValue, TSnapshot>
+    options?: AsyncComponentOptions<ReactiveTarget, TValue, EventMap, TSnapshot>
   ): Component
+  export function component<
+    TValue,
+    TEvents extends EventMap,
+    TSnapshot = TValue,
+  >(
+    factory: (props: undefined, emit: Emit<TEvents>) => Promise<TValue> | TValue,
+    options?: AsyncComponentOptions<ReactiveTarget, TValue, TEvents, TSnapshot>
+  ): Component<TEvents>
   export function component<T extends ReactiveTarget, TValue, TSnapshot = TValue>(
     factory: (props: Props<T>) => Promise<TValue> | TValue,
-    options?: AsyncComponentOptions<T, TValue, TSnapshot>
+    options?: AsyncComponentOptions<T, TValue, EventMap, TSnapshot>
   ): ComponentWithProps<T>
+  export function component<
+    T extends ReactiveTarget,
+    TValue,
+    TEvents extends EventMap,
+    TSnapshot = TValue,
+  >(
+    factory: (props: Props<T>, emit: Emit<TEvents>) => Promise<TValue> | TValue,
+    options?: AsyncComponentOptions<T, TValue, TEvents, TSnapshot>
+  ): ComponentWithProps<T, TEvents>
   export { component as c }
 
   export function pick<T extends object, K extends keyof T>(
@@ -162,6 +212,26 @@ declare module '@arrow-js/framework' {
   ): Promise<RenderResult>
   export function toTemplate(view: unknown): ArrowTemplate
   export function renderDocument(template: string, parts: DocumentRenderParts): string
+}
+
+declare module '@arrow-js/sandbox' {
+  import type { ArrowTemplate } from '@arrow-js/core'
+
+  export interface SandboxProps {
+    source: Record<string, string>
+    shadowDOM?: boolean
+    onError?: (error: Error | string) => void
+    debug?: boolean
+  }
+
+  export interface SandboxEvents {
+    output?: (payload: unknown) => void
+  }
+
+  export function sandbox(
+    props: SandboxProps,
+    events?: SandboxEvents
+  ): ArrowTemplate
 }
 
 declare module '@arrow-js/ssr' {
@@ -248,6 +318,9 @@ type ReactiveTarget = import('@arrow-js/core').ReactiveTarget
 type Reactive<T extends ReactiveTarget> = import('@arrow-js/core').Reactive<T>
 type Computed<T> = import('@arrow-js/core').Computed<T>
 type Props<T extends ReactiveTarget> = import('@arrow-js/core').Props<T>
+type EventMap = import('@arrow-js/core').EventMap
+type Events<T extends EventMap> = import('@arrow-js/core').Events<T>
+type Emit<T extends EventMap> = import('@arrow-js/core').Emit<T>
 type ArrowTemplateKey = import('@arrow-js/core').ArrowTemplateKey
 type PropertyObserver<T> = import('@arrow-js/core').PropertyObserver<T>
 type RenderOptions = import('@arrow-js/framework').RenderOptions

@@ -19,25 +19,54 @@ interface TemplateInstance {
 }
 
 type ComponentProps = Record<PropertyKey, unknown> | undefined
-type ComponentFactory = (props?: Record<PropertyKey, unknown>) => unknown
+type ComponentEventMap = Record<string, unknown>
+type ComponentEvents<T extends ComponentEventMap = ComponentEventMap> = {
+  [K in keyof T]?: (payload: T[K]) => void
+}
+type ComponentEmit<T extends ComponentEventMap = ComponentEventMap> = <
+  K extends keyof T,
+>(
+  event: K,
+  payload: T[K]
+) => void
+type ComponentFactory = (
+  props?: Record<PropertyKey, unknown>,
+  emit?: ComponentEmit
+) => unknown
 
 interface ComponentCall {
   __arrowSandboxComponent: true
   h: ComponentFactory
   p: ComponentProps
+  e: ComponentEvents | undefined
   k: unknown
   key: (key: unknown) => ComponentCall
 }
 
-type SandboxComponent = (input?: ComponentProps) => ComponentCall
+type SandboxComponent = (
+  input?: ComponentProps,
+  events?: ComponentEvents
+) => ComponentCall
 
 type AsyncStatus = 'idle' | 'pending' | 'resolved' | 'rejected'
 
 interface AsyncSandboxComponentOptions<TValue = unknown> {
   fallback?: unknown
-  onError?: (error: unknown, props: Record<PropertyKey, unknown> | undefined) => unknown
-  render?: (value: TValue, props: Record<PropertyKey, unknown> | undefined) => unknown
-  serialize?: (value: TValue, props: Record<PropertyKey, unknown> | undefined) => unknown
+  onError?: (
+    error: unknown,
+    props: Record<PropertyKey, unknown> | undefined,
+    emit: ComponentEmit
+  ) => unknown
+  render?: (
+    value: TValue,
+    props: Record<PropertyKey, unknown> | undefined,
+    emit: ComponentEmit
+  ) => unknown
+  serialize?: (
+    value: TValue,
+    props: Record<PropertyKey, unknown> | undefined,
+    emit: ComponentEmit
+  ) => unknown
   deserialize?: (snapshot: unknown, props: Record<PropertyKey, unknown> | undefined) => TValue
   idPrefix?: string
 }
@@ -193,11 +222,24 @@ function isComponentCall(value: unknown): value is ComponentCall {
 
 function createPropsProxy(
   source: ComponentProps,
-  factory: ComponentFactory
+  factory: ComponentFactory,
+  events?: ComponentEvents
 ) {
-  const box = reactive({ 0: source, 1: factory }) as Record<number, unknown>
+  const box = reactive({ 0: source, 1: factory, 2: events }) as Record<
+    number,
+    unknown
+  >
+  const emit = ((event: PropertyKey, payload: unknown) => {
+    const handlers = box[2] as ComponentEvents | undefined
+    const handler = handlers?.[event as keyof ComponentEvents]
+    if (typeof handler === 'function') {
+      handler(payload)
+    }
+  }) as ComponentEmit
+
   return [
     new Proxy(box, propsProxyHandler) as Record<PropertyKey, unknown>,
+    emit,
     box,
   ] as const
 }
@@ -315,8 +357,8 @@ function normalizeRenderable(
   }
 
   if (isComponentCall(value)) {
-    const [props] = createPropsProxy(value.p, value.h)
-    const renderable = value.p === undefined ? value.h() : value.h(props)
+    const [props, emit] = createPropsProxy(value.p, value.h, value.e)
+    const renderable = value.h(props, emit)
     const children = normalizeRenderable(renderable, emitPatchUpdates)
     return [children.length === 1 ? children[0] : createFragmentNode(children)]
   }
@@ -634,7 +676,7 @@ function createAsyncComponent(
   loader: ComponentFactory,
   options: AsyncSandboxComponentOptions = {}
 ) : SandboxComponent {
-  return component((props?: ComponentProps) => {
+  return component((props?: ComponentProps, emit?: ComponentEmit) => {
     const state = reactive({
       status: 'idle' as AsyncStatus,
       value: null as unknown,
@@ -648,7 +690,7 @@ function createAsyncComponent(
       state.status = 'pending'
       const task = (async () => {
         try {
-          const value = await loader(props)
+          const value = await loader(props, emit)
           state.value = value
           state.status = 'resolved'
         } catch (error) {
@@ -671,14 +713,18 @@ function createAsyncComponent(
       () => {
         if (state.status === 'rejected') {
           if (options.onError) {
-            return options.onError(state.error, props)
+            return options.onError(state.error, props, emit as ComponentEmit)
           }
           throw state.error
         }
 
         if (state.status === 'resolved') {
           return options.render
-            ? options.render(state.value, props)
+            ? options.render(
+                state.value,
+                props,
+                emit as ComponentEmit
+              )
             : state.value
         }
 
@@ -696,12 +742,13 @@ export function component(
     return createAsyncComponent(factory, options)
   }
 
-  return ((input?: ComponentProps) =>
+  return ((input?: ComponentProps, events?: ComponentEvents) =>
     ({
       __arrowSandboxComponent: true,
       h: factory,
       k: undefined,
       p: input,
+      e: events,
       key: setComponentKey,
     })) as SandboxComponent
 }
@@ -796,6 +843,13 @@ export function log(method: SandboxConsoleMethod, args: unknown[]) {
     type: 'log',
     method,
     args: args.map((arg) => serializeConsoleValue(arg)),
+  })
+}
+
+export function output(payload: unknown) {
+  send({
+    type: 'output',
+    payload: serializeConsoleValue(payload),
   })
 }
 

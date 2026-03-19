@@ -1,4 +1,4 @@
-import { sandbox, type SandboxInstance, type SandboxOptions } from '@arrow-js/sandbox'
+import { sandbox, type SandboxProps } from '@arrow-js/sandbox'
 import { sandboxExamples } from './examples'
 import './styles.css'
 
@@ -72,7 +72,7 @@ const elements = {
 }
 
 let activeExampleIndex = 0
-let instance: SandboxInstance | null = null
+let mounted = false
 
 function setStatus(message: string, tone: 'idle' | 'error' = 'idle') {
   elements.status.textContent = message
@@ -85,47 +85,25 @@ function getActiveExample() {
 
 function buildRunConfig() {
   const example = getActiveExample()
-  const options: SandboxOptions = {
-    ...example.options,
+  const props: SandboxProps = {
     debug: true,
-    onError(error) {
-      setStatus(
-        error instanceof Error ? error.message : String(error),
-        'error'
-      )
+    onError(error: Error | string) {
+      setStatus(error instanceof Error ? error.message : String(error), 'error')
+    },
+    source: {
+      ...example.source,
+      [example.entryFile]: elements.source.value,
     },
   }
 
-  const source = elements.source.value
-
-  if (options.files && options.entry) {
-    options.files = {
-      ...options.files,
-      [options.entry]: source,
-    }
-    return {
-      code: '',
-      options,
-    }
-  }
-
-  return {
-    code: source,
-    options,
-  }
+  return props
 }
 
 function renderFiles() {
   const example = getActiveExample()
-  const files = example.options?.files
-  if (!files) {
-    elements.files.textContent = 'Single-file entry'
-    return
-  }
-
-  elements.files.textContent = Object.keys(files)
+  elements.files.textContent = Object.keys(example.source)
     .sort()
-    .map((file) => (file === example.options?.entry ? `${file}  <- entry` : file))
+    .map((file) => (file === example.entryFile ? `${file}  <- entry` : file))
     .join('\n')
 }
 
@@ -149,23 +127,19 @@ function renderExamples() {
 function syncExampleState() {
   const example = getActiveExample()
   elements.description.textContent = example.description
-  elements.source.value = example.options?.entry
-    ? example.options.files?.[example.options.entry] ?? example.code
-    : example.code
+  elements.source.value = example.source[example.entryFile] ?? ''
   renderExamples()
   renderFiles()
   setStatus(`Loaded "${example.label}".`)
 }
 
 async function mountFresh() {
-  const { code, options } = buildRunConfig()
-  instance?.destroy()
-  instance = null
   elements.preview.replaceChildren()
   setStatus('Booting sandbox...')
 
   try {
-    instance = await sandbox(code, elements.preview, options)
+    sandbox(buildRunConfig())(elements.preview)
+    mounted = true
     setStatus(`Mounted "${getActiveExample().label}".`)
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), 'error')
@@ -173,9 +147,7 @@ async function mountFresh() {
 }
 
 async function updateExisting() {
-  const { code, options } = buildRunConfig()
-
-  if (!instance) {
+  if (!mounted) {
     await mountFresh()
     return
   }
@@ -183,7 +155,8 @@ async function updateExisting() {
   setStatus('Updating sandbox...')
 
   try {
-    await instance.update(code, options)
+    elements.preview.replaceChildren()
+    sandbox(buildRunConfig())(elements.preview)
     setStatus(`Updated "${getActiveExample().label}".`)
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), 'error')
@@ -191,8 +164,7 @@ async function updateExisting() {
 }
 
 function destroySandbox() {
-  instance?.destroy()
-  instance = null
+  mounted = false
   elements.preview.replaceChildren()
   setStatus('Sandbox destroyed.')
 }

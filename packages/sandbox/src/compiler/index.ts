@@ -1,11 +1,12 @@
 import ts from 'typescript'
 import { preprocessModule } from './module'
 import { normalizeSandboxGraph } from './normalize'
-import type { SandboxOptions, TemplateDescriptor } from '../shared/protocol'
+import type { SandboxProps, TemplateDescriptor } from '../shared/protocol'
 import { SandboxCompileError } from '../host/errors'
 
 export interface CompiledSandboxGraph {
   entryPath: string
+  cssText?: string
   modules: Record<string, string>
   descriptors: Record<string, TemplateDescriptor>
 }
@@ -58,10 +59,9 @@ function transpileModule(path: string, source: string) {
 }
 
 export function compileSandboxGraph(
-  code: string,
-  options: SandboxOptions = {}
+  props: SandboxProps
 ): CompiledSandboxGraph {
-  const normalized = normalizeSandboxGraph(code, options)
+  const normalized = normalizeSandboxGraph(props)
   const modules: Record<string, string> = {}
   const descriptors: Record<string, TemplateDescriptor> = {}
 
@@ -77,6 +77,7 @@ export function compileSandboxGraph(
 
   return {
     entryPath: normalized.entryPath,
+    cssText: normalized.cssText,
     modules,
     descriptors,
   }

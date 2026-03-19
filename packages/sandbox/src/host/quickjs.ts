@@ -826,7 +826,7 @@ export async function createVmRunner(
         }
         try {
           const result = context.evalCode(
-            'globalThis.__arrowHostSend = undefined; globalThis.console = undefined; globalThis.setTimeout = undefined; globalThis.clearTimeout = undefined; globalThis.setInterval = undefined; globalThis.clearInterval = undefined; globalThis.fetch = undefined;'
+            'globalThis.__arrowHostSend = undefined; globalThis.console = undefined; globalThis.setTimeout = undefined; globalThis.clearTimeout = undefined; globalThis.setInterval = undefined; globalThis.clearInterval = undefined; globalThis.fetch = undefined; globalThis.output = undefined;'
           )
           context.unwrapResult(result).dispose()
         } catch {}

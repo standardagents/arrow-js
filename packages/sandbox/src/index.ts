@@ -1,6 +1,6 @@
 export type {
-  SandboxInstance,
-  SandboxOptions,
+  SandboxEvents,
+  SandboxProps,
 } from './shared/protocol'
 
 export type {
