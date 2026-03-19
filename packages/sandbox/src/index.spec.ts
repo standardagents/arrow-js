@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { html } from '@arrow-js/core'
+import { html, reactive } from '@arrow-js/core'
 import { compileSandboxGraph } from './compiler'
 import {
   sandbox as renderSandbox,
   type SandboxEvents,
   type SandboxProps,
-} from '@arrow-js/sandbox'
+} from './index'
 
 const realSetTimeout = globalThis.setTimeout.bind(globalThis)
 
@@ -290,6 +290,22 @@ describe('@arrow-js/sandbox', () => {
     await waitForSandbox()
 
     expect(button.textContent).toBe('Count 1')
+  })
+
+  it('accepts reactive sandbox props', async () => {
+    const root = document.createElement('div')
+    const config = reactive({
+      shadowDOM: false,
+      source: {
+        'main.ts': `export default html\`<button>Alpha</button>\``,
+      },
+    })
+
+    html`<section>${renderSandbox(config)}</section>`(root)
+    const host = getSandboxHost(root)
+    await waitForSandboxHost(host)
+
+    expect(getSandboxRenderRoot(host).textContent).toContain('Alpha')
   })
 
   it('injects main.css into the shadow root by default', async () => {

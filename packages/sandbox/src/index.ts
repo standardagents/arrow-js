@@ -13,4 +13,18 @@ export type {
   VmToHostMessage,
 } from './shared/protocol'
 
-export { sandbox } from './host/instance'
+import type { ArrowTemplate } from '@arrow-js/core'
+import type { SandboxEvents, SandboxProps } from './shared/protocol'
+import { sandbox as renderSandbox } from './host/instance'
+
+export function sandbox<T extends {
+  source: object
+  shadowDOM?: boolean
+  onError?: (error: Error | string) => void
+  debug?: boolean
+}>(
+  props: T,
+  events?: SandboxEvents
+): ArrowTemplate {
+  return renderSandbox(props, events)
+}

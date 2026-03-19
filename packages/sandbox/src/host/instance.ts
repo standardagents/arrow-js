@@ -34,8 +34,12 @@ interface ResolvedSandboxProps {
   sourceSignature: string
 }
 
+type SandboxHostProps = Omit<SandboxProps, 'source'> & {
+  source: object
+}
+
 type SandboxTemplateProps = Record<PropertyKey, unknown> & {
-  config: SandboxProps
+  config: SandboxHostProps
   events?: SandboxEvents
 }
 
@@ -400,7 +404,7 @@ function cloneSandboxEvents(events?: SandboxEvents) {
   }
 }
 
-function resolveSandboxProps(props: SandboxProps): ResolvedSandboxProps {
+function resolveSandboxProps(props: SandboxHostProps): ResolvedSandboxProps {
   const sourceEntries = Object.entries(props.source || {})
     .map(([name, value]) => [normalizeVirtualPath(name), String(value)] as const)
     .sort(([left], [right]) => left.localeCompare(right))
@@ -438,10 +442,15 @@ const SandboxHostComponent = component<SandboxTemplateProps>(
   }
 )
 
-export function sandbox(
-  props: SandboxProps,
+export function sandbox<T extends {
+  source: object
+  shadowDOM?: boolean
+  onError?: (error: Error | string) => void
+  debug?: boolean
+}>(
+  props: T,
   events?: SandboxEvents
 ): ArrowTemplate {
   ensureSandboxElement()
-  return html`${SandboxHostComponent({ config: props, events })}`
+  return html`${SandboxHostComponent({ config: props as SandboxHostProps, events })}`
 }

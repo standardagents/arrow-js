@@ -112,5 +112,8 @@ export const sandboxTypeReferenceSnippet = joinBlocks(
   '// ---cut-end---',
   extractBlock(sandboxProtocolSource, 'export interface SandboxProps {'),
   extractBlock(sandboxProtocolSource, 'export interface SandboxEvents {'),
-  extractBlock(sandboxHostSource, 'export function sandbox(')
+  extractBlock(sandboxHostSource, [
+    'export function sandbox<',
+    'export function sandbox(',
+  ])
 )
