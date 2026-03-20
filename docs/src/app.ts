@@ -1,7 +1,7 @@
 import { layout } from './layout'
 
 const defaultSiteUrl = 'https://arrow-js.com'
-const defaultOgImageUrl = 'https://assets.arrow-js.com/og.webp'
+const defaultOgImageUrl = 'https://assets.arrow-js.com/og.webp?2'
 
 export interface DocsPage {
   title: string
