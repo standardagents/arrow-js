@@ -147,17 +147,19 @@ export default html\`
   color: var(--text);
 }
 
-html[data-theme='dark'] .w {
-  --text: #e8e8e8;
-  --text-2: #aaa;
-  --text-3: #777;
-  --muted: #555;
-  --rule: #2a2a2a;
-  --btn-border: #444;
-  --btn-hover: #333;
-  --btn-active: #3a3a3a;
-  --blocked: #f87171;
-  --ok: #4ade80;
+@media (prefers-color-scheme: dark) {
+  .w {
+    --text: #e8e8e8;
+    --text-2: #aaa;
+    --text-3: #777;
+    --muted: #555;
+    --rule: #2a2a2a;
+    --btn-border: #444;
+    --btn-hover: #333;
+    --btn-active: #3a3a3a;
+    --blocked: #f87171;
+    --ok: #4ade80;
+  }
 }
 
 .sec { padding: 1.5rem 1.75rem; }
