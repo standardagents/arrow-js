@@ -6,12 +6,6 @@ import tailwindcss from '@tailwindcss/vite'
 const rootDir = __dirname
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      '@arrow-js/highlight': path.resolve(rootDir, '../packages/highlight/src/index.ts'),
-      '@arrow-js/sandbox': path.resolve(rootDir, '../packages/sandbox/src/index.ts'),
-    },
-  },
   plugins: [arrow(), tailwindcss()],
   server: {
     host: '127.0.0.1',

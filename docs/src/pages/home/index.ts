@@ -16,6 +16,7 @@ import {
   Templates,
   SandboxGuide,
   Routing,
+  HighlightedRouting,
   HighlightedTemplates,
   HighlightedSandboxGuide,
   Examples,
@@ -32,6 +33,7 @@ export function HomePage(
   const WatchingDataSection = highlightCode ? HighlightedWatchingData : WatchingData
   const TemplatesSection = highlightCode ? HighlightedTemplates : Templates
   const SandboxSection = highlightCode ? HighlightedSandboxGuide : SandboxGuide
+  const RoutingSection = highlightCode ? HighlightedRouting : Routing
   const ExamplesSection = highlightCode ? HighlightedExamples : Examples
 
   return html`
@@ -50,7 +52,7 @@ export function HomePage(
             ${Community()}
             ${ComponentsSection()} ${ReactiveDataSection()}
             ${WatchingDataSection()} ${TemplatesSection()}
-            ${SandboxSection()} ${Routing()} ${ExamplesSection()}
+            ${SandboxSection()} ${RoutingSection()} ${ExamplesSection()}
           </article>
         </div>
       </div>

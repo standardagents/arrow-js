@@ -9,7 +9,7 @@ const exampleModules = import.meta.glob('./examples/**/*.{ts,css}', {
 
 const metaById = new Map(playgroundExampleMeta.map((example) => [example.id, example]))
 
-function createExample(id, files) {
+function createExample(id, files, options) {
   const meta = metaById.get(id)
 
   if (!meta) {
@@ -19,6 +19,7 @@ function createExample(id, files) {
   return {
     ...meta,
     entry: ENTRY_FILE,
+    ...options,
     files,
   }
 }
@@ -34,10 +35,11 @@ function getExampleFile(id, name) {
   return value.trimEnd() + '\n'
 }
 
-function createExampleFromDir(id, files) {
+function createExampleFromDir(id, files, options) {
   return createExample(
     id,
-    files.map((name) => [name, getExampleFile(id, name)])
+    files.map((name) => [name, getExampleFile(id, name)]),
+    options
   )
 }
 
@@ -107,6 +109,12 @@ export const playgroundExamples = [
     'RunnerApp.ts',
     'ScoreBoard.ts',
     'engine.ts',
+    'styles.css',
+  ]),
+  createExampleFromDir('sandbox', [
+    ENTRY_FILE,
+    'App.ts',
+    'widget.ts',
     'styles.css',
   ]),
 ]

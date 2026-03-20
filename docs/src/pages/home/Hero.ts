@@ -43,9 +43,15 @@ export function Hero() {
           >
             A tiny, blazing-fast, zero dependency, type-safe framework with no
             build step required. <br /><br />
-            ArrowJS ships with the ability to isolate component logic in Web
-            Assembly sandboxes while rendering full inline DOM directly in your
-            app — no iframes.<br /><br />
+            ArrowJS ships with the ability to isolate component logic inside Web
+            Assembly
+            <a
+              href="#sandbox"
+              class="text-arrow-600 dark:text-arrow-400 underline decoration-2 underline-offset-2"
+              >sandboxes</a
+            >
+            while rendering full inline DOM directly in your app — no iframes,
+            no pre-defined UI components.<br /><br />
             Ship safe, flexible, on-demand UIs for your users without having to
             plan components in advance.
           </p>

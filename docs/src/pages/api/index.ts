@@ -78,13 +78,24 @@ export function ApiPage(options: { highlightCode?: boolean } = {}) {
               </h1>
               ${CopyPageMenuIsland({ markdownPath: '/api.md' })}
             </div>
+            <h2 class="text-sm font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-8 mt-4">@arrow-js/core</h2>
             ${ReactiveApiSection()} ${WatchApiSection()} ${HtmlApiSection()}
             ${ComponentApiSection()} ${OnCleanupApiSection()} ${PickApiSection()}
-            ${NextTickApiSection()} ${RenderApiSection()} ${BoundaryApiSection()}
+            ${NextTickApiSection()}
+
+            <h2 class="text-sm font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-8 mt-12">@arrow-js/framework</h2>
+            ${RenderApiSection()} ${BoundaryApiSection()}
             ${ToTemplateApiSection()} ${RenderDocumentApiSection()}
+
+            <h2 class="text-sm font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-8 mt-12">@arrow-js/ssr</h2>
             ${RenderToStringApiSection()} ${SerializePayloadApiSection()}
+
+            <h2 class="text-sm font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-8 mt-12">@arrow-js/hydrate</h2>
             ${HydrateApiSection()} ${ReadPayloadApiSection()}
+
+            <h2 class="text-sm font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-8 mt-12">@arrow-js/sandbox</h2>
             ${SandboxApiSection()}
+
             ${TypesReferenceSection()}
           </article>
         </div>

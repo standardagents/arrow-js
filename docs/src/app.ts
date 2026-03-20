@@ -38,24 +38,6 @@ async function createApiPage(
   }
 }
 
-async function createDocsPage(
-  url: string,
-  options: { highlightCode?: boolean } = {}
-): Promise<DocsPage> {
-  const { DocsPage } = await import('./pages/docs/index')
-
-  return {
-    title: 'Documentation — Arrow',
-    description:
-      'Guides for ArrowJS fundamentals including reactive state, templates, components, routing, and sandboxed execution.',
-    canonicalUrl: `${siteUrl}/docs`,
-    imageUrl: defaultImageUrl,
-    imageAlt: defaultImageAlt,
-    ogType: 'website' as const,
-    view: layout(DocsPage(options), url),
-  }
-}
-
 async function createHomePageWithOptions(
   url: string,
   options: { highlightCode?: boolean } = {}
@@ -80,7 +62,6 @@ export async function createPage(
 ): Promise<DocsPage> {
   const path = normalizePath(url)
   if (path === '/api') return createApiPage(url, options)
-  if (path === '/docs') return createDocsPage(url, options)
   return createHomePageWithOptions(url, options)
 }
 

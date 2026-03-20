@@ -38,7 +38,7 @@ export function WhyArrow() {
            Unlike other major frameworks, there is no "idomatic" way to use Arrow since it's just TypeScript functions and template literals. The entire documentation fits in less than 5% of a 200k context window.
         </p>
         <p>
-          Arrow requires no build step, no JSX compilation, no React compiler, no Vite plugin (there is one if you need SSR), no Vue template complier, and yet it runs incredibly fast at with less than 5kb over the wire. When coupled with the <a href="#sandbox">Arrow sandbox</a>, it's perfect for interfaces produced by chat agents too.
+          Arrow requires no build step, no JSX compilation, no React compiler, no Vite plugin (there is one if you need SSR), no Vue template complier, and yet it runs incredibly fast at with less than 5kb over the wire. When coupled with the <a href="#sandbox" class="text-arrow-600 dark:text-arrow-400 underline underline-offset-2">Arrow sandbox</a>, it's perfect for interfaces produced by chat agents too.
         </p>
       </div>
     </section>
@@ -100,7 +100,7 @@ export function Quickstart(options: DocsContentOptions = {}) {
           Install the official
           <a
             href="https://marketplace.visualstudio.com/items?itemName=StandardAgents.arrowjs-syntax"
-            class="text-arrow-550 dark:text-arrow-400 underline underline-offset-2"
+            class="text-arrow-600 dark:text-arrow-400 underline underline-offset-2"
           >ArrowJS Syntax</a>
           extension for VSCode to get syntax highlighting and
           autocomplete inside <code>html</code> template literals.
@@ -125,7 +125,7 @@ export function Community() {
           Join the
           <a
             href="https://discord.gg/fBy7csvmAt"
-            class="text-arrow-550 dark:text-arrow-400 underline underline-offset-2"
+            class="text-arrow-600 dark:text-arrow-400 underline underline-offset-2"
           >Arrow Discord</a>
           to ask questions, share what you're building, and connect with
           other developers using Arrow.
@@ -134,7 +134,7 @@ export function Community() {
           Follow the author
           <a
             href="https://x.com/intent/follow?screen_name=jpschroeder"
-            class="text-arrow-550 dark:text-arrow-400 underline underline-offset-2"
+            class="text-arrow-600 dark:text-arrow-400 underline underline-offset-2"
             target="_blank"
             rel="noopener"
           >Justin Schroeder</a>
@@ -144,7 +144,7 @@ export function Community() {
           Browse the source, report issues, and contribute on
           <a
             href="https://github.com/standardagents/arrow-js"
-            class="text-arrow-550 dark:text-arrow-400 underline underline-offset-2"
+            class="text-arrow-600 dark:text-arrow-400 underline underline-offset-2"
             target="_blank"
             rel="noopener"
           >GitHub</a>.
@@ -306,7 +306,6 @@ export function ReactiveData() {
         class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4"
       >
         Reactive Data
-        <code class="text-lg ml-2">r</code>
       </h2>
       <div class="space-y-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
         <p>
@@ -384,7 +383,6 @@ export function WatchingData() {
         class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4"
       >
         Watching Data
-        <code class="text-lg ml-2">w</code>
       </h2>
       <div class="space-y-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
         <p>
@@ -442,7 +440,6 @@ export function Templates() {
         class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4"
       >
         Templates
-        <code class="text-lg ml-2">t</code>
       </h2>
       <div class="space-y-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
         <p>
@@ -615,6 +612,20 @@ const source = {
 
 html\`<section>\${sandbox({ source })}</section>\`(root)`)}
 
+        <a
+          href="${playgroundExampleHref('sandbox')}"
+          class="playground-cta"
+        >
+          <span class="playground-cta-label">Live Demo</span>
+          <span class="playground-cta-heading">See sandbox isolation in action</span>
+          <span class="playground-cta-desc"
+            >A full interactive example showing reactivity inside the VM,
+            blocked browser globals, and the restricted fetch bridge.</span
+          >
+          <span class="playground-cta-action"
+            >Open in Playground<span aria-hidden="true"> &rarr;</span></span
+          >
+        </a>
       </div>
     </section>
   `
@@ -745,25 +756,23 @@ export function Routing() {
           </li>
         </ul>
 
-        <div class="code-block">
-          <pre><code class="language-ts">import { html } from '@arrow-js/core'
+        ${TsCodeBlock(`import { html } from '@arrow-js/core'
 
 export function routeToPage(url: string) {
   if (url === '/') {
     return {
       status: 200,
       title: 'Home',
-      view: html\`&lt;main&gt;Home&lt;/main&gt;\`,
+      view: html\`<main>Home</main>\`,
     }
   }
 
   return {
     status: 404,
     title: 'Not Found',
-    view: html\`&lt;main&gt;Not found&lt;/main&gt;\`,
+    view: html\`<main>Not found</main>\`,
   }
-}</code></pre>
-        </div>
+}`)}
       </div>
     </section>
   `
@@ -808,7 +817,7 @@ export function Examples() {
                   ${entry.description}
                 </p>
                 <span
-                  class="text-sm font-medium text-arrow-550 dark:text-arrow-400 group-hover:underline underline-offset-2 transition-colors"
+                  class="text-sm font-medium text-arrow-600 dark:text-arrow-400 group-hover:underline underline-offset-2 transition-colors"
                 >Open in Playground &rarr;</span>
               </a>
             `,

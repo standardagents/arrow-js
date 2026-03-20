@@ -12,6 +12,7 @@
     "@arrow-js/framework": "workspace:*",
     "@arrow-js/highlight": "workspace:*",
     "@arrow-js/hydrate": "workspace:*",
+    "@arrow-js/sandbox": "workspace:*",
     "@arrow-js/ssr": "workspace:*",
     "@arrow-js/vite-plugin-arrow": "workspace:*",
     "@shikijs/twoslash": "^4.0.2",

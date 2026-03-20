@@ -194,7 +194,7 @@ const createExampleSnapshot = (exampleId) => {
   const example = getPlaygroundExample(exampleId)
 
   return {
-    active: example.entry,
+    active: example.activeFile || example.files[1]?.[0] || example.entry,
     files: cloneExampleFiles(example.files),
   }
 }
@@ -947,7 +947,7 @@ const shell = html`
             </button>
           </div>
         </div>
-        <a class="play-link" href="/docs/">Docs</a>
+        <a class="play-link" href="/#why-arrow">Docs</a>
         ${ThemeToggle('play-icon-button play-theme-toggle')}
       </div>
     </header>

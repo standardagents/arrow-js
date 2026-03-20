@@ -13,6 +13,8 @@ const templatePath = path.resolve(__dirname, 'index.html')
 const clientDistPath = path.resolve(__dirname, 'dist/client')
 const serverEntryPath = path.resolve(__dirname, 'dist/server/entry-server.js')
 const htmlEntryRedirects = new Map([
+  ['/docs', '/'],
+  ['/docs/', '/'],
   ['/play', '/play/'],
   ['/play/preview', '/play/preview.html'],
   ['/play/preview/', '/play/preview.html'],
@@ -326,6 +328,14 @@ function redirectHtmlEntryUrl(request) {
   const redirectPath = htmlEntryRedirects.get(target.pathname)
 
   if (!redirectPath) {
+    if (
+      target.pathname.length > 1 &&
+      target.pathname.endsWith('/') &&
+      !devHtmlEntries.has(target.pathname)
+    ) {
+      return `${target.pathname.replace(/\/+$/, '')}${target.search}`
+    }
+
     return null
   }
 

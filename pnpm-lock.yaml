@@ -83,6 +83,9 @@ importers:
       '@arrow-js/hydrate':
         specifier: workspace:*
         version: link:../packages/hydrate
+      '@arrow-js/sandbox':
+        specifier: workspace:*
+        version: link:../packages/sandbox
       '@arrow-js/ssr':
         specifier: workspace:*
         version: link:../packages/ssr
@@ -165,6 +168,7 @@ importers:
       vite:
         specifier: ^8.0.0
         version: 8.0.0(@types/node@22.19.15)(jiti@2.6.1)(terser@5.46.0)
+
   packages/skill: {}
 
   packages/ssr:

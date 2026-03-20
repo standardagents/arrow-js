@@ -89,6 +89,14 @@ export const playgroundExampleMeta = [
       'Navigate ()=> through ASCII pipes in this flappy-bird tribute with reactive state and a RAF game loop.',
     sourceUrl: `${examplesBaseUrl}/runner`,
   },
+  {
+    id: 'sandbox',
+    title: 'Sandbox',
+    icon: '\u{1F6E1}\uFE0F',
+    description:
+      'Run untrusted Arrow code in a WASM VM with isolated DOM, restricted fetch, and one-way output.',
+    sourceUrl: `${examplesBaseUrl}/sandbox`,
+  },
 ]
 
 export const docsExampleMeta = playgroundExampleMeta.filter(
