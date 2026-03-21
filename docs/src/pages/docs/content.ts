@@ -324,7 +324,7 @@ export function ReactiveData() {
       <div class="space-y-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
         <p>
           <code>reactive()</code> turns plain objects, arrays, or expressions
-          into live state that Arrow can track and update from.
+          into live state that Arrow (or anyone else) can track and update from.
         </p>
         <p>
           <code>reactive(value)</code> or <code>reactive(() =&gt; value)</code>
