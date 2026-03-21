@@ -52,8 +52,8 @@ export function HomePage(
             </div>
             ${WhyArrow()} ${Quickstart({ highlightCode })}
             ${Community()}
-            ${ComponentsSection()} ${ReactiveDataSection()}
-            ${WatchingDataSection()} ${TemplatesSection()}
+            ${ReactiveDataSection()} ${TemplatesSection()}
+            ${ComponentsSection()} ${WatchingDataSection()}
             ${SandboxSection()} ${RoutingSection()} ${ExamplesSection()}
           </article>
         </div>

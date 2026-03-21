@@ -16,10 +16,10 @@ export const homeNavGroups: NavGroup[] = [
   {
     title: 'Essentials',
     items: [
-      { id: 'components', label: 'Components' },
       { id: 'reactive-data', label: 'Reactive Data' },
-      { id: 'watching-data', label: 'Watching Data' },
       { id: 'templates', label: 'Templates' },
+      { id: 'components', label: 'Components' },
+      { id: 'watching-data', label: 'Watching Data' },
       { id: 'sandbox', label: 'Sandbox' },
       { id: 'routing', label: 'Routing' },
     ],
