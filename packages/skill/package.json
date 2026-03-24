@@ -22,6 +22,7 @@
   "files": [
     "index.js",
     "installer.js",
+    "tui.js",
     "resources",
     "README.md",
     "LICENSE.txt",
