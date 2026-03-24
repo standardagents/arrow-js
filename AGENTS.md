@@ -2,6 +2,10 @@
 
 Use this file for repo-wide automation and release tasks. Package-specific docs guidance still lives in `docs/AGENTS.md`.
 
+## Commit messages
+
+- Use Conventional Commits for all git commit messages, for example `feat: ...`, `fix: ...`, `perf(core): ...`, or `docs: ...`
+
 ## Release automation
 
 The release entrypoint is:
