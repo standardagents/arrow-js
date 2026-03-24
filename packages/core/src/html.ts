@@ -249,8 +249,8 @@ function syncTemplateToChunk(
     return
   }
   if (chunk._t && chunk._t !== template) {
-    chunk._t._m = false
-    chunk._t._h = undefined
+    ;(chunk._t as InternalTemplate)._m = false
+    ;(chunk._t as InternalTemplate)._h = undefined
   }
   chunk._t = template
   chunk.k = template._k
@@ -1084,13 +1084,13 @@ let unmountStack: Array<
   | Chunk
   | Text
   | ChildNode
-  | Array<Chunk | Text | ChildNode>
+  | Array<Chunk | Text>
 > = []
 
 function destroyChunk(chunk: Chunk, detached = false) {
   if (chunk.st) removeStaleChunk(chunk)
-  chunk._t._m = false
-  chunk._t._h = undefined
+  ;(chunk._t as InternalTemplate)._m = false
+  ;(chunk._t as InternalTemplate)._h = undefined
   detachChunkEvents(chunk)
   if (chunk.u) {
     for (let i = 0; i < chunk.u.length; i++) chunk.u[i]()
@@ -1129,8 +1129,8 @@ function destroyChunk(chunk: Chunk, detached = false) {
 
 function recycleChunk(chunk: Chunk, detached = false) {
   if (!detached) moveDOMRef(chunk.ref, chunk.dom)
-  chunk._t._m = false
-  chunk._t._h = undefined
+  ;(chunk._t as InternalTemplate)._m = false
+  ;(chunk._t as InternalTemplate)._h = undefined
   addStaleChunk(chunk)
 }
 
@@ -1141,7 +1141,7 @@ function removeUnmounted(
     | Chunk
     | Text
     | ChildNode
-    | Array<Chunk | Text | ChildNode>,
+    | Array<Chunk | Text>,
   detached = false
 ) {
   if (isChunk(chunk)) {
@@ -1195,7 +1195,7 @@ function unmount(
     | Chunk
     | Text
     | ChildNode
-    | Array<Chunk | Text | ChildNode>
+    | Array<Chunk | Text>
     | undefined
 ) {
   if (!chunk) return
