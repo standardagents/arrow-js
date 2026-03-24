@@ -298,6 +298,12 @@ declare function html(
   strings: TemplateStringsArray | string[],
   ...expSlots: ArrowExpression[]
 ): ArrowTemplate`)}
+        <p>
+          Compiler output can call <code>html(strings, ...exprs)</code> directly
+          with a generated <code>string[]</code>. Arrow will route it through the
+          same template caching, pooling, hydration, and cleanup path as a
+          tagged literal.
+        </p>
 
         <h3
           class="text-lg font-semibold text-zinc-900 dark:text-white pt-4"

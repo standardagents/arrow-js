@@ -924,6 +924,48 @@ describe('html', () => {
     expect(second).toHaveBeenCalledTimes(1)
   })
 
+  it('supports compiler-generated string arrays with attrs, events, and signature reuse', async () => {
+    const parent = document.createElement('div')
+    const first = vi.fn()
+    const second = vi.fn()
+    const data = reactive({
+      title: 'ready',
+      label: 'Push',
+      active: 'first' as 'first' | 'second',
+    })
+
+    const button = () =>
+      html(
+        ['<button title="', '" @click="', '">', '</button>'],
+        data.title,
+        data.active === 'first' ? first : second,
+        data.label
+      )
+
+    html`${() => button()}`(parent)
+
+    const target = parent.querySelector('button') as HTMLButtonElement
+    expect(target.getAttribute('title')).toBe('ready')
+    expect(target.textContent).toBe('Push')
+
+    click(target)
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(0)
+
+    data.title = 'clicked'
+    data.label = 'Again'
+    data.active = 'second'
+    await nextTick()
+
+    expect(parent.querySelector('button')).toBe(target)
+    expect(target.getAttribute('title')).toBe('clicked')
+    expect(target.textContent).toBe('Again')
+
+    click(target)
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
   it('sets the IDL value attribute on input elements', async () => {
     const parent = document.createElement('div')
     const data = reactive({ value: '' })
@@ -1269,6 +1311,40 @@ describe('html', () => {
     expect(() => html`<span>beta</span>`.id('shape-check')(host)).toThrow(
       /shape mismatch/
     )
+  })
+
+  it('supports compiler-generated property bindings like innerHTML', async () => {
+    const host = document.createElement('div')
+    const state = reactive({ markup: '<strong>Ready</strong>' })
+    const strings = ['<div data-probe="summary" .innerHTML="', '"></div>']
+
+    html`${() => html(strings, state.markup)}`(host)
+
+    const target = host.querySelector('[data-probe="summary"]') as HTMLDivElement
+    expect(target.innerHTML).toBe('<strong>Ready</strong>')
+
+    state.markup = '<em>Done</em>'
+    await nextTick()
+
+    expect(target.innerHTML).toBe('<em>Done</em>')
+  })
+
+  it('swaps compiler-generated templates when a condition changes', async () => {
+    const host = document.createElement('div')
+    const state = reactive({ accountType: 'business' })
+    const company = ['<p data-probe="branch">Company field</p>']
+    const personal = ['<p data-probe="branch">Personal account</p>']
+
+    html`${() =>
+      state.accountType !== 'personal' ? html(company) : html(personal)}`(host)
+
+    expect(host.textContent).toContain('Company field')
+
+    state.accountType = 'personal'
+    await nextTick()
+
+    expect(host.textContent).toContain('Personal account')
+    expect(host.textContent).not.toContain('Company field')
   })
 })
 

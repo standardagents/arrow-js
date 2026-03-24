@@ -132,6 +132,27 @@ describe('framework ssr', () => {
 })
 
 describe('framework hydrate', () => {
+  it('adopts generated html(string[]) templates when markup matches', async () => {
+    const root = document.createElement('div')
+    const state = reactive({
+      label: 'Ready',
+      id: 'probe',
+    })
+
+    const createView = () =>
+      html`${html(['<button id="', '">', '</button>'], state.id, state.label)}`
+
+    const ssr = await renderToString(createView())
+    root.innerHTML = ssr.html
+    const existing = root.querySelector('#probe')
+
+    const result = await hydrate(root, createView(), ssr.payload)
+
+    expect(result.adopted).toBe(true)
+    expect(root.querySelector('#probe')).toBe(existing)
+    expect(root.querySelector('#probe')?.textContent).toContain('Ready')
+  })
+
   it('adopts existing server-rendered nodes when markup matches', async () => {
     const root = document.createElement('div')
     const Counter = component(() => {

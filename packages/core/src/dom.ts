@@ -3,6 +3,7 @@ export function setAttr(
   attrName: string,
   value: string | number | boolean | null
 ) {
+  if (attrName === '.innerhtml') attrName = '.innerHTML'
   const isIDL =
     (attrName === 'value' && 'value' in node) ||
     attrName === 'checked' ||

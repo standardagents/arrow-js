@@ -142,6 +142,46 @@ describe('component', () => {
     expect(root.textContent).toBe('1|2')
   })
 
+  it('replaces a component branch with a template branch', async () => {
+    const data = reactive({ personal: false })
+    const Child = component(() => html`<label>Company field</label>`)
+    const root = document.createElement('div')
+
+    html`<main>${() => (data.personal ? html`<p>Personal account</p>` : Child())}</main>`(root)
+    expect(text(root)).toBe('Companyfield')
+
+    data.personal = true
+    await nextTick()
+
+    expect(text(root)).toBe('Personalaccount')
+  })
+
+  it('replaces a slotted component branch with a template branch', async () => {
+    const data = reactive({ personal: false })
+    const Card = component((props: Props<{ slots?: { default?: () => unknown } }>) =>
+      html`<section>${() => props.slots?.default?.() ?? null}</section>`
+    )
+    const Child = component(() => html`<label>Company field</label>`)
+    const root = document.createElement('div')
+
+    html`<main>
+      ${() =>
+        Card({
+          slots: {
+            default: () =>
+              data.personal ? html`<p>Personal account</p>` : Child(),
+          },
+        })}
+    </main>`(root)
+
+    expect(text(root)).toBe('Companyfield')
+
+    data.personal = true
+    await nextTick()
+
+    expect(text(root)).toBe('Personalaccount')
+  })
+
   it('cleans up computed values created inside a component when the slot unmounts', async () => {
     const data = reactive({ count: 1, show: true })
     const runs = vi.fn((count: number) => count * 2)

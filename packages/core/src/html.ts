@@ -149,8 +149,11 @@ const delimiter = '¤'
 const delimiterComment = `<!--${delimiter}-->`
 const initialChunkPoolSize = 1024
 
-const chunkMemo: Record<string, ChunkProto> = {}
-const chunkMemoByRef = new WeakMap<ReadonlyArray<string>, ChunkProto>()
+const chunkMemo = new WeakMap<Document, Record<string, ChunkProto>>()
+const chunkMemoByRef = new WeakMap<
+  ReadonlyArray<string>,
+  WeakMap<Document, ChunkProto>
+>()
 const staleById = new Map<Exclude<ArrowTemplateId, undefined>, Chunk>()
 const staleBySignature = new Map<string, StaleBucket>()
 let chunkPoolHead: Chunk | undefined
@@ -194,13 +197,22 @@ function getChunkProto(template: InternalTemplate): ChunkProto {
 }
 
 function resolveChunkProto(rawStrings: TemplateStringsArray | string[]): ChunkProto {
-  const cachedByRef = chunkMemoByRef.get(rawStrings)
+  const doc = document
+  let memoByRef = chunkMemoByRef.get(rawStrings)
+  const cachedByRef = memoByRef?.get(doc)
   if (cachedByRef) return cachedByRef
 
   const signature = rawStrings.join(delimiterComment)
-  const cached = chunkMemo[signature]
+  let signatureMemo = chunkMemo.get(doc)
+  if (!signatureMemo) {
+    signatureMemo = {}
+    chunkMemo.set(doc, signatureMemo)
+  }
+  const cached = signatureMemo[signature]
   if (cached) {
-    chunkMemoByRef.set(rawStrings, cached)
+    memoByRef ??= new WeakMap<Document, ChunkProto>()
+    memoByRef.set(doc, cached)
+    chunkMemoByRef.set(rawStrings, memoByRef)
     return cached
   }
 
@@ -217,8 +229,10 @@ function resolveChunkProto(rawStrings: TemplateStringsArray | string[]): ChunkPr
     signature,
     expressions,
   }
-  chunkMemoByRef.set(rawStrings, created)
-  chunkMemo[signature] = created
+  memoByRef ??= new WeakMap<Document, ChunkProto>()
+  memoByRef.set(doc, created)
+  chunkMemoByRef.set(rawStrings, memoByRef)
+  signatureMemo[signature] = created
   return created
 }
 
