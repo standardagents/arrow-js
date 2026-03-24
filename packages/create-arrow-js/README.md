@@ -26,10 +26,11 @@ It can also install the Arrow coding-agent skill during setup.
 pnpm create arrow-js@latest my-arrow-app
 ```
 
+`create-arrow-js` installs dependencies automatically when it can detect the invoking package manager. Use `--no-install` to skip that step.
+
 Then:
 
 ```sh
 cd my-arrow-app
-pnpm install
 pnpm dev
 ```

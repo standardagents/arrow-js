@@ -11,7 +11,7 @@ export interface Page {
 }
 
 const homePage = {
-  description: 'An Arrow starter with Vite 8 SSR, hydration, and async components.',
+  description: 'A tiny reactive core with SSR when you need it.',
   title: 'Arrow App',
 }
 

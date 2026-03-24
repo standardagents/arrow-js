@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import readline from 'node:readline/promises'
@@ -14,6 +15,7 @@ const arrowPackages = [
   '@arrow-js/hydrate',
   '@arrow-js/ssr',
 ]
+const supportedPackageManagers = new Set(['pnpm', 'npm', 'yarn', 'bun'])
 
 const toolVersions = {
   nodeTypes: '^22.16.5',
@@ -57,6 +59,92 @@ export async function scaffoldArrowApp(
     skillAgent,
     targetDir: resolvedTargetDir,
   }
+}
+
+export function detectPackageManager(env = process.env) {
+  const userAgent = env.npm_config_user_agent ?? ''
+  const userAgentMatch = /^([^/]+)\//.exec(userAgent)?.[1]
+
+  if (userAgentMatch && supportedPackageManagers.has(userAgentMatch)) {
+    return userAgentMatch
+  }
+
+  const execPath = normalizePath(env.npm_execpath ?? '').toLowerCase()
+
+  if (execPath.includes('pnpm')) return 'pnpm'
+  if (execPath.includes('yarn')) return 'yarn'
+  if (execPath.includes('bun')) return 'bun'
+  if (execPath.includes('/npm') || execPath.endsWith('npm-cli.js')) return 'npm'
+
+  return null
+}
+
+export function getPackageManagerCommands(packageManager = 'pnpm') {
+  if (packageManager === 'npm') {
+    return {
+      command: 'npm',
+      install: 'npm install',
+      installArgs: ['install'],
+      dev: 'npm run dev',
+    }
+  }
+
+  if (packageManager === 'yarn') {
+    return {
+      command: 'yarn',
+      install: 'yarn install',
+      installArgs: ['install'],
+      dev: 'yarn dev',
+    }
+  }
+
+  if (packageManager === 'bun') {
+    return {
+      command: 'bun',
+      install: 'bun install',
+      installArgs: ['install'],
+      dev: 'bun run dev',
+    }
+  }
+
+  return {
+    command: 'pnpm',
+    install: 'pnpm install',
+    installArgs: ['install'],
+    dev: 'pnpm dev',
+  }
+}
+
+export async function installProjectDependencies(
+  targetDir,
+  options = {}
+) {
+  const packageManager = options.packageManager ?? detectPackageManager(options.env)
+
+  if (!packageManager) {
+    return null
+  }
+
+  const commands = getPackageManagerCommands(packageManager)
+  const runner = options.runner ?? runCommand
+
+  try {
+    await runner(commands.command, commands.installArgs, {
+      cwd: targetDir,
+      stdio: 'inherit',
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      [
+        `Arrow app scaffolded, but ${commands.install} failed in ${targetDir}.`,
+        `Run ${commands.install} manually and retry.`,
+        errorMessage,
+      ].join('\n')
+    )
+  }
+
+  return packageManager
 }
 
 async function ensureTargetDir(targetDir) {
@@ -146,6 +234,25 @@ function isMissingPathError(error) {
 
 function normalizePath(value) {
   return value.replace(/\\/g, '/')
+}
+
+function runCommand(command, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      stdio: options.stdio ?? 'inherit',
+    })
+
+    child.on('error', reject)
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve(undefined)
+        return
+      }
+
+      reject(new Error(`${command} ${args.join(' ')} exited with code ${code ?? 'null'}.`))
+    })
+  })
 }
 
 async function resolveSkillAgent(options) {

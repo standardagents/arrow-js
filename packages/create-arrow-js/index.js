@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 import process from 'node:process'
-import { scaffoldArrowApp } from './scaffold.js'
+import {
+  detectPackageManager,
+  getPackageManagerCommands,
+  installProjectDependencies,
+  scaffoldArrowApp,
+} from './scaffold.js'
 
 const args = process.argv.slice(2)
 let targetDir = ''
@@ -26,6 +31,11 @@ for (let index = 0; index < args.length; index += 1) {
     continue
   }
 
+  if (arg === '--no-install') {
+    options.install = false
+    continue
+  }
+
   throw new Error(`Unknown argument "${arg}".`)
 }
 
@@ -33,20 +43,46 @@ targetDir = targetDir || 'arrow-app'
 
 try {
   const result = await scaffoldArrowApp(targetDir, options)
+  const packageManager = detectPackageManager()
+  const commands = getPackageManagerCommands(packageManager ?? 'pnpm')
+  const shouldInstall = options.install !== false
 
-  const relativeTarget = result.relativeTargetDir === '.'
-    ? result.projectName
-    : result.relativeTargetDir
+  let installedPackageManager = null
+
+  if (shouldInstall && packageManager) {
+    process.stdout.write(`\nInstalling dependencies with ${packageManager}...\n`)
+    installedPackageManager = await installProjectDependencies(result.targetDir, {
+      packageManager,
+    })
+  }
+
+  const nextSteps = []
+
+  if (result.relativeTargetDir !== '.') {
+    nextSteps.push(`  cd ${result.relativeTargetDir}`)
+  }
+
+  if (!installedPackageManager) {
+    if (shouldInstall && !packageManager) {
+      nextSteps.push(`  ${commands.install}`)
+    } else if (!shouldInstall) {
+      nextSteps.push(`  ${commands.install}`)
+    }
+  }
+
+  nextSteps.push(`  ${commands.dev}`)
+  nextSteps.push('')
 
   process.stdout.write(
     [
       '',
       `Arrow app scaffolded in ${result.targetDir}`,
       '',
+      ...(shouldInstall && !packageManager
+        ? ['Automatic dependency install was skipped because the invoking package manager could not be detected.', '']
+        : []),
       'Next steps:',
-      `  cd ${relativeTarget}`,
-      '  pnpm install',
-      '  pnpm dev',
+      ...nextSteps,
       '',
     ].join('\n')
   )
@@ -60,7 +96,7 @@ try {
 function printHelp() {
   process.stdout.write(
     [
-      'Usage: create-arrow-js [project-name] [--skill-agent codex|claude|both|skip]',
+      'Usage: create-arrow-js [project-name] [--skill-agent codex|claude|both|skip] [--no-install]',
       '',
     ].join('\n')
   )

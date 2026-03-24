@@ -6,11 +6,14 @@ import { createServer as createViteServer } from 'vite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isProduction = process.env.NODE_ENV === 'production'
-const port = Number(process.env.PORT ?? 5173)
+const host = '127.0.0.1'
+const requestedPort = Number(process.env.PORT ?? 5173)
+const port = await findAvailablePort(requestedPort, host)
 
 const templatePath = path.resolve(__dirname, 'index.html')
 const clientDistPath = path.resolve(__dirname, 'dist/client')
 const serverEntryPath = path.resolve(__dirname, 'dist/server/entry-server.js')
+const devStyleHref = '/src/style.css'
 
 let vite = null
 
@@ -55,6 +58,7 @@ const server = http.createServer(async (request, response) => {
     } else {
       template = await fs.readFile(templatePath, 'utf8')
       template = await vite.transformIndexHtml(url, template)
+      template = injectDevStyles(template)
       ;({ renderPage } = await vite.ssrLoadModule('/src/entry-server.ts'))
     }
 
@@ -85,6 +89,8 @@ if (!isProduction) {
     root: __dirname,
     appType: 'custom',
     server: {
+      host,
+      port,
       middlewareMode: true,
       hmr: {
         server,
@@ -94,9 +100,13 @@ if (!isProduction) {
   })
 }
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Arrow app running at http://127.0.0.1:${port}`)
-})
+await listen(server, port, host)
+
+if (port !== requestedPort) {
+  console.warn(`Port ${requestedPort} is in use, using ${port} instead.`)
+}
+
+console.log(`Arrow app running at http://${host}:${port}`)
 
 async function resolveStaticFile(url) {
   const pathname = new URL(url, 'http://arrow.local').pathname
@@ -165,4 +175,80 @@ function isDocumentRequest(request) {
 
   const accept = request.headers.accept ?? ''
   return !accept || accept.includes('text/html') || accept.includes('*/*')
+}
+
+async function findAvailablePort(startPort, host) {
+  const probe = http.createServer()
+
+  try {
+    await listen(probe, startPort, host)
+    const address = probe.address()
+
+    if (!address || typeof address === 'string') {
+      throw new Error('Unable to determine an available port.')
+    }
+
+    return address.port
+  } catch (error) {
+    if (isAddressInUseError(error)) {
+      return findAvailablePort(startPort + 1, host)
+    }
+
+    throw error
+  } finally {
+    if (probe.listening) {
+      await closeServer(probe)
+    }
+  }
+}
+
+function listen(server, port, host) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      server.off('error', onError)
+      server.off('listening', onListening)
+    }
+
+    const onError = (error) => {
+      cleanup()
+      reject(error)
+    }
+
+    const onListening = () => {
+      cleanup()
+      resolve(undefined)
+    }
+
+    server.once('error', onError)
+    server.once('listening', onListening)
+    server.listen(port, host)
+  })
+}
+
+function closeServer(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+
+      resolve(undefined)
+    })
+  })
+}
+
+function isAddressInUseError(error) {
+  return !!error && typeof error === 'object' && 'code' in error && error.code === 'EADDRINUSE'
+}
+
+function injectDevStyles(template) {
+  if (template.includes(`href="${devStyleHref}"`) || template.includes(`href='${devStyleHref}'`)) {
+    return template
+  }
+
+  return template.replace(
+    '</head>',
+    `  <link rel="stylesheet" href="${devStyleHref}" />\n  </head>`
+  )
 }

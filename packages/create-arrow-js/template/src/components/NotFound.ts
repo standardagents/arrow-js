@@ -7,12 +7,12 @@ type NotFoundProps = Record<PropertyKey, unknown> & {
 
 export const NotFound = component((props: Props<NotFoundProps>) =>
   html`<main class="not-found">
-    <p class="eyebrow">404</p>
+    <p class="section__label">404</p>
     <h1>Nothing lives at ${() => props.path}</h1>
-    <p class="lede">
-      Edit <code>src/app.ts</code> to add routes or wire this template into a
+    <p>
+      Edit <code>src/App.ts</code> to add routes or wire this into a
       larger app.
     </p>
-    <a class="button" href="/">Back home</a>
+    <a class="btn btn--accent" href="/">Back home</a>
   </main>`
 )
