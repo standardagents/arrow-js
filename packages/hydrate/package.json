@@ -1,6 +1,6 @@
 {
   "name": "@arrow-js/hydrate",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Hydration runtime for adopting ArrowJS SSR output in the browser.",
   "license": "MIT",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@arrow-js/sandbox",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "QuickJS/WASM-backed sandbox runtime for executing Arrow templates outside the host window realm.",
   "license": "MIT",
   "type": "module",

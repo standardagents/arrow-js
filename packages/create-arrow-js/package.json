@@ -1,6 +1,6 @@
 {
   "name": "create-arrow-js",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Scaffold a Vite 8 ArrowJS app with SSR and hydration.",
   "license": "MIT",
   "type": "module",

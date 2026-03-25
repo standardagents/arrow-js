@@ -1,7 +1,7 @@
 {
-  "@arrow-js/core": "1.0.1",
-  "@arrow-js/framework": "1.0.1",
-  "@arrow-js/hydrate": "1.0.1",
-  "@arrow-js/ssr": "1.0.1",
-  "@arrow-js/skill": "1.0.1"
+  "@arrow-js/core": "1.0.2",
+  "@arrow-js/framework": "1.0.2",
+  "@arrow-js/hydrate": "1.0.2",
+  "@arrow-js/ssr": "1.0.2",
+  "@arrow-js/skill": "1.0.2"
 }

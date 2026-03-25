@@ -1,6 +1,6 @@
 {
   "name": "@arrow-js/ssr",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Server-side rendering helpers for ArrowJS.",
   "license": "MIT",
   "type": "module",
