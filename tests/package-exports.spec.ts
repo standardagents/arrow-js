@@ -106,6 +106,10 @@ describe('packaged Arrow exports', () => {
           'utf8'
         )
       )
+      const frameworkIndexSource = await fs.readFile(
+        path.resolve(consumerDir, 'node_modules/@arrow-js/framework/dist/index.mjs'),
+        'utf8'
+      )
 
       expect(stdout).toContain('imports ok')
       expect(corePackage.exports['./internal'].import).toBe('./dist/internal.mjs')
@@ -115,6 +119,8 @@ describe('packaged Arrow exports', () => {
       expect(ssrPackage.exports['.'].import).toBe('./dist/index.mjs')
       expect(hydratePackage.exports['.'].import).toBe('./dist/index.mjs')
       expect(highlightPackage.exports['.'].import).toBe('./dist/index.mjs')
+      expect(frameworkIndexSource).not.toContain('./ssr.mjs')
+      expect(frameworkIndexSource).not.toContain('jsdom')
     },
     90_000
   )

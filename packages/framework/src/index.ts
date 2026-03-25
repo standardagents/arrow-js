@@ -8,9 +8,3 @@ export { render, toTemplate } from './render'
 export type { RenderOptions, RenderPayload, RenderResult } from './render'
 export { renderDocument } from './http'
 export type { DocumentRenderParts } from './http'
-export { renderToString, serializePayload } from './ssr'
-export type {
-  HydrationPayload,
-  SsrRenderOptions,
-  SsrRenderResult,
-} from './ssr'
