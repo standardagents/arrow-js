@@ -401,6 +401,29 @@ describe('html', () => {
     expect(after[1]?.textContent).toBe('next')
   })
 
+  it('appends non-keyed rows without remounting the preserved prefix', async () => {
+    const data = reactive({
+      list: [{ value: 'a' }, { value: 'b' }, { value: 'c' }],
+    })
+    const parent = document.createElement('div')
+    html`<ul>
+      ${() => data.list.map((item) => html`<li>${item.value}</li>`)}
+    </ul>`(parent)
+
+    const list = parent.querySelector('ul') as HTMLUListElement
+    const insertBefore = vi.spyOn(list, 'insertBefore')
+    const before = [...parent.querySelectorAll('li')]
+    data.list.push({ value: 'd' }, { value: 'e' })
+    await nextTick()
+    const after = [...parent.querySelectorAll('li')]
+
+    expect(insertBefore.mock.calls.length).toBeLessThanOrEqual(1)
+    expect(after[0]).toBe(before[0])
+    expect(after[1]).toBe(before[1])
+    expect(after[2]).toBe(before[2])
+    expect(after.map((item) => item.textContent)).toEqual(['a', 'b', 'c', 'd', 'e'])
+  })
+
   it('can render an empty list, render some items, remove the items, and render some again', async () => {
     const data = reactive<{ list: string[] }>({ list: [] })
     const parent = document.createElement('div')
@@ -719,6 +742,57 @@ describe('html', () => {
     expect(after.map((item) => item.textContent)).toEqual(['a', 'c', 'b', 'd'])
     expect(after[1]).toBe(before[2])
     expect(after[2]).toBe(before[1])
+  })
+
+  it('only moves the swapped keyed rows for distant swaps', async () => {
+    const data = reactive({
+      list: Array.from({ length: 1000 }, (_, id) => ({ id, name: `${id}` })),
+    })
+    const parent = document.createElement('div')
+    html`<ul>
+      ${() =>
+        data.list.map((item: User) => html`<li>${item.name}</li>`.key(item.id))}
+    </ul>`(parent)
+
+    const list = parent.querySelector('ul') as HTMLUListElement
+    const insertBefore = vi.spyOn(list, 'insertBefore')
+    const swapped = data.list.slice()
+    const item = swapped[1]
+    swapped[1] = swapped[998]
+    swapped[998] = item
+
+    data.list = swapped
+    await nextTick()
+
+    expect(insertBefore).toHaveBeenCalledTimes(2)
+  })
+
+  it('appends keyed rows without moving the preserved prefix', async () => {
+    const data = reactive({
+      list: [
+        { name: 'a', id: 1 },
+        { name: 'b', id: 2 },
+        { name: 'c', id: 3 },
+      ],
+    })
+    const parent = document.createElement('div')
+    html`<ul>
+      ${() =>
+        data.list.map((item: User) => html`<li>${item.name}</li>`.key(item.id))}
+    </ul>`(parent)
+
+    const list = parent.querySelector('ul') as HTMLUListElement
+    const insertBefore = vi.spyOn(list, 'insertBefore')
+    const before = [...parent.querySelectorAll('li')]
+    data.list.push({ name: 'd', id: 4 }, { name: 'e', id: 5 })
+    await nextTick()
+    const after = [...parent.querySelectorAll('li')]
+
+    expect(insertBefore.mock.calls.length).toBeLessThanOrEqual(1)
+    expect(after[0]).toBe(before[0])
+    expect(after[1]).toBe(before[1])
+    expect(after[2]).toBe(before[2])
+    expect(after.map((item) => item.textContent)).toEqual(['a', 'b', 'c', 'd', 'e'])
   })
 
   it('can update the values in keyed nodes', async () => {

@@ -1,9 +1,11 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import {
+  cpSync,
   copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -236,9 +238,13 @@ function createArrowIndexHtml(keyed) {
 }
 
 export function syncArrowBenchmark() {
-  const distFile = join(rootDir, 'packages', 'core', 'dist', 'index.min.mjs')
+  const distFile = join(rootDir, 'packages', 'core', 'dist', 'index.mjs')
+  const distChunksDir = join(rootDir, 'packages', 'core', 'dist', 'chunks')
   if (!existsSync(distFile)) {
-    throw new Error('Missing packages/core/dist/index.min.mjs. Run `pnpm build:runtime` first.')
+    throw new Error('Missing packages/core/dist/index.mjs. Run `pnpm build:runtime` first.')
+  }
+  if (!existsSync(distChunksDir)) {
+    throw new Error('Missing packages/core/dist/chunks. Run `pnpm build:runtime` first.')
   }
 
   const version = getVersionLabel()
@@ -246,12 +252,15 @@ export function syncArrowBenchmark() {
   for (const keyed of [true, false]) {
     const targetDir = frameworkDir(keyed)
     const srcDir = join(targetDir, 'src')
+    const chunkTargetDir = join(srcDir, 'chunks')
     const packagePath = join(targetDir, 'package.json')
     const indexPath = join(targetDir, 'index.html')
     const mainPath = join(srcDir, 'Main.js')
 
     mkdirSync(srcDir, { recursive: true })
     copyFileSync(distFile, join(srcDir, 'arrow.js'))
+    rmSync(chunkTargetDir, { recursive: true, force: true })
+    cpSync(distChunksDir, chunkTargetDir, { recursive: true })
     writeFileSync(mainPath, createArrowMainSource(keyed))
     writeFileSync(indexPath, createArrowIndexHtml(keyed))
 

@@ -357,6 +357,16 @@ function dispatchChunkEvent(this: Element, evt: Event) {
   ;(expressionPool[binding.p] as CallableFunction | undefined)?.(evt)
 }
 
+function getRenderableKey(
+  renderable: ComponentCall | ArrowTemplate
+): Exclude<ArrowTemplateKey, undefined> | undefined {
+  return (isCmp(renderable)
+    ? renderable.k
+    : (renderable as InternalTemplate)._k) as
+    | Exclude<ArrowTemplateKey, undefined>
+    | undefined
+}
+
 export function html(
   strings: TemplateStringsArray | string[],
   ...expSlots: ArrowExpression[]
@@ -666,6 +676,18 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
             renderedList[i] = mountItem(item, updaterFrag!)
             continue
           }
+          if (
+            isTpl(item) &&
+            isChunk(prev) &&
+            prev._t === item &&
+            (item as InternalTemplate)._h === prev &&
+            (item as InternalTemplate)._m
+          ) {
+            anchor = getNode(prev)
+            renderedList[i] = prev
+            ;(prev as Rendered & { mk?: number }).mk = mark
+            continue
+          }
           const used = patch(item, prev, anchor) as Rendered
           anchor = getNode(used)
           renderedList[i] = used
@@ -727,6 +749,15 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
     return true
   }
 
+  function syncKeyedRenderable(
+    renderable: ComponentCall | ArrowTemplate,
+    chunk: Chunk
+  ) {
+    if (isCmp(renderable)) return syncComponentChunk(renderable, chunk)
+    syncTemplateToChunk(renderable as InternalTemplate, chunk, true)
+    return true
+  }
+
   function moveChunkIntoPlace(
     chunk: Chunk,
     prev: Chunk | Text | Rendered[],
@@ -754,6 +785,54 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       return [placeholder]
     }
 
+    const renderedList = new Array(renderableLength) as Rendered[]
+    const parent = getNode(previousList[0]).parentNode
+    if (!parent) return null
+
+    let sharedPrefix = 0
+    const sharedPrefixKeys = Object.create(null) as Record<
+      Exclude<ArrowTemplateKey, undefined>,
+      1
+    >
+    for (; sharedPrefix < previousLength && sharedPrefix < renderableLength; sharedPrefix++) {
+      const rendered = previousList[sharedPrefix]
+      if (!isChunk(rendered) || rendered.k === undefined) return null
+      const item = renderable[sharedPrefix]
+      if (!isCmp(item) && !isTpl(item)) return null
+      const key = getRenderableKey(item)
+      if (key === undefined || key !== rendered.k) break
+      sharedPrefixKeys[key] = 1
+      if (!syncKeyedRenderable(item, rendered)) return null
+      renderedList[sharedPrefix] = rendered
+    }
+    if (sharedPrefix === previousLength) {
+      if (sharedPrefix === renderableLength) return renderedList
+      const fragment = document.createDocumentFragment()
+      for (let i = sharedPrefix; i < renderableLength; i++) {
+        const item = renderable[i]
+        if (!isCmp(item) && !isTpl(item)) return null
+        const key = getRenderableKey(item)
+        if (key === undefined || key in sharedPrefixKeys) return null
+        sharedPrefixKeys[key] = 1
+        renderedList[i] = mountItem(item, fragment)
+      }
+      parent.insertBefore(
+        fragment,
+        previousLength
+          ? (getNode(previousList[previousLength - 1]).nextSibling as ChildNode | null)
+          : null
+      )
+      return renderedList
+    }
+    if (sharedPrefix === renderableLength) {
+      for (let i = sharedPrefix; i < previousLength; i++) {
+        const stale = previousList[i]
+        forgetChunk(stale)
+        unmount(stale)
+      }
+      return renderedList
+    }
+
     const previousIndexByKey = Object.create(null) as Record<
       Exclude<ArrowTemplateKey, undefined>,
       number
@@ -768,6 +847,9 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       previousIndexByKey[key] = i + 1
     }
 
+    const nextKeyList = new Array(renderableLength) as Array<
+      Exclude<ArrowTemplateKey, undefined>
+    >
     const nextKeys = Object.create(null) as Record<
       Exclude<ArrowTemplateKey, undefined>,
       1
@@ -775,73 +857,138 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
     let overlaps = 0
     for (let i = 0; i < renderableLength; i++) {
       const item = renderable[i]
-      const key = isCmp(item)
-        ? (item.k as Exclude<ArrowTemplateKey, undefined> | undefined)
-        : isTpl(item)
-          ? ((item as InternalTemplate)._k as
-              | Exclude<ArrowTemplateKey, undefined>
-              | undefined)
-          : undefined
+      const key =
+        isCmp(item) || isTpl(item) ? getRenderableKey(item) : undefined
       if (key === undefined || key in nextKeys) return null
+      nextKeyList[i] = key
       nextKeys[key] = 1
       if (key in previousIndexByKey) overlaps++
     }
     if (!overlaps) return null
 
-    const renderedList = new Array(renderableLength) as Rendered[]
+    let oldStart = 0
+    let newStart = 0
+    let oldEnd = previousLength - 1
+    let newEnd = renderableLength - 1
 
-    for (let i = 0; i < renderableLength; i++) {
-      const item = renderable[i]
-      const key = (isCmp(item)
-        ? item.k
-        : isTpl(item)
-          ? (item as InternalTemplate)._k
-          : undefined) as Exclude<ArrowTemplateKey, undefined>
+    while (oldStart <= oldEnd && newStart <= newEnd) {
+      const startChunk = previousList[oldStart] as Chunk
+      const endChunk = previousList[oldEnd] as Chunk
+      const startKey = startChunk.k as Exclude<ArrowTemplateKey, undefined>
+      const endKey = endChunk.k as Exclude<ArrowTemplateKey, undefined>
+      const nextStartKey = nextKeyList[newStart]
+      const nextEndKey = nextKeyList[newEnd]
 
-      const oldIndex = previousIndexByKey[key]
-      const existing =
-        oldIndex === undefined
-          ? undefined
-          : (previousList[oldIndex - 1] as Chunk)
-      if (existing) {
-        if (isCmp(item)) {
-          if (!syncComponentChunk(item, existing)) return null
-        } else if (isTpl(item)) {
-          syncTemplateToChunk(item as InternalTemplate, existing, true)
-        } else {
+      if (startKey === nextStartKey) {
+        if (!syncKeyedRenderable(renderable[newStart] as ComponentCall | ArrowTemplate, startChunk)) {
           return null
         }
-        renderedList[i] = existing
-      } else {
+        renderedList[newStart++] = startChunk
+        oldStart++
+        continue
+      }
+      if (endKey === nextEndKey) {
+        if (!syncKeyedRenderable(renderable[newEnd] as ComponentCall | ArrowTemplate, endChunk)) {
+          return null
+        }
+        renderedList[newEnd--] = endChunk
+        oldEnd--
+        continue
+      }
+      if (startKey === nextEndKey) {
+        if (!syncKeyedRenderable(renderable[newEnd] as ComponentCall | ArrowTemplate, startChunk)) {
+          return null
+        }
+        moveDOMRef(
+          startChunk.ref,
+          parent,
+          getNode(endChunk).nextSibling as ChildNode | null
+        )
+        renderedList[newEnd--] = startChunk
+        oldStart++
+        continue
+      }
+      if (endKey === nextStartKey) {
+        if (!syncKeyedRenderable(renderable[newStart] as ComponentCall | ArrowTemplate, endChunk)) {
+          return null
+        }
+        moveDOMRef(endChunk.ref, parent, getNode(startChunk, undefined, true))
+        renderedList[newStart++] = endChunk
+        oldEnd--
+        continue
+      }
+      break
+    }
+
+    if (newStart > newEnd) {
+      for (let i = oldStart; i <= oldEnd; i++) {
+        const stale = previousList[i]
+        forgetChunk(stale)
+        unmount(stale)
+      }
+      return renderedList
+    }
+
+    if (oldStart > oldEnd) {
+      const fragment = document.createDocumentFragment()
+      for (let i = newStart; i <= newEnd; i++) {
+        const item = renderable[i]
         if (!isCmp(item) && !isTpl(item)) return null
-        const fragment = document.createDocumentFragment()
         renderedList[i] = mountItem(item, fragment)
       }
+      parent.insertBefore(
+        fragment,
+        newEnd + 1 < renderableLength
+          ? getNode(renderedList[newEnd + 1], undefined, true)
+          : null
+      )
+      return renderedList
     }
-    const parent = getNode(previousList[0]).parentNode
-    if (!parent) return null
 
-    let before = getNode(previousList[previousLength - 1]).nextSibling as
-      | ChildNode
-      | null
-    for (let i = renderableLength - 1; i >= 0; i--) {
-      const rendered = renderedList[i]
-      const start = getNode(rendered, undefined, true)
+    const middleIndexByKey = Object.create(null) as Record<
+      Exclude<ArrowTemplateKey, undefined>,
+      number
+    >
+    for (let i = newStart; i <= newEnd; i++) {
+      middleIndexByKey[nextKeyList[i]] = i + 1
+    }
+
+    for (let i = oldStart; i <= oldEnd; i++) {
+      const stale = previousList[i] as Chunk
+      const nextIndex = middleIndexByKey[stale.k as Exclude<ArrowTemplateKey, undefined>]
+      if (nextIndex === undefined) {
+        forgetChunk(stale)
+        unmount(stale)
+        continue
+      }
+      const item = renderable[nextIndex - 1] as ComponentCall | ArrowTemplate
+      if (!syncKeyedRenderable(item, stale)) return null
+      renderedList[nextIndex - 1] = stale
+    }
+
+    let before =
+      newEnd + 1 < renderableLength
+        ? getNode(renderedList[newEnd + 1], undefined, true)
+        : (getNode(previousList[previousLength - 1]).nextSibling as
+            | ChildNode
+            | null)
+    for (let i = newEnd; i >= newStart; i--) {
+      const existing = renderedList[i]
+      if (!existing) {
+        const item = renderable[i]
+        if (!isCmp(item) && !isTpl(item)) return null
+        const fragment = document.createDocumentFragment()
+        const mounted = mountItem(item, fragment)
+        renderedList[i] = mounted
+        parent.insertBefore(fragment, before)
+        before = getNode(mounted, undefined, true)
+        continue
+      }
+      const start = getNode(existing, undefined, true)
       if (start.parentNode !== parent || start.nextSibling !== before) {
-        if (isChunk(rendered)) {
-          moveDOMRef(rendered.ref, parent, before)
-        } else {
-          parent.insertBefore(rendered, before)
-        }
+        moveDOMRef((existing as Chunk).ref, parent, before)
       }
       before = start
-    }
-
-    for (let i = 0; i < previousLength; i++) {
-      const stale = previousList[i] as Chunk
-      if (stale.k !== undefined && stale.k in nextKeys) continue
-      forgetChunk(stale)
-      unmount(stale)
     }
 
     return renderedList
