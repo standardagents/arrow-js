@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   prepare:
@@ -70,7 +70,6 @@ jobs:
       - verify
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -107,7 +106,6 @@ jobs:
       - verify
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -144,7 +142,6 @@ jobs:
       - verify
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -179,7 +176,6 @@ jobs:
       - verify
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -215,7 +211,6 @@ jobs:
       - publish-core
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -251,7 +246,6 @@ jobs:
       - publish-core
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -289,7 +283,6 @@ jobs:
       - publish-framework
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -328,7 +321,6 @@ jobs:
       - publish-framework
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -373,7 +365,6 @@ jobs:
       - publish-skill
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -401,3 +392,28 @@ jobs:
             sleep 10
           done
           exit 1
+
+  release:
+    needs:
+      - prepare
+      - publish-core
+      - publish-framework
+      - publish-highlight
+      - publish-hydrate
+      - publish-sandbox
+      - publish-ssr
+      - publish-vite-plugin-arrow
+      - publish-skill
+      - publish-create-arrow-js
+    if: needs.prepare.outputs.npm_tag == 'latest'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: npx changelogithub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

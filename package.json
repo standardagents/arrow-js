@@ -41,6 +41,7 @@
     "release:dev": "node scripts/release.mjs --tag=dev"
   },
   "devDependencies": {
+    "@clack/prompts": "^1.1.0",
     "@playwright/test": "^1.58.2",
     "@rollup/plugin-typescript": "^12.1.4",
     "@shikijs/engine-oniguruma": "^4.0.2",

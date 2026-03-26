@@ -4,8 +4,9 @@ import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import readline from 'node:readline/promises'
 import { fileURLToPath } from 'node:url'
+import * as p from '@clack/prompts'
+import chalk from 'chalk'
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const rootPackagePath = path.join(rootDir, 'package.json')
@@ -42,23 +43,43 @@ await runInteractiveRelease({
 })
 
 async function runInteractiveRelease({ requestedTag, requestedBump, dryRun, skipConfirm }) {
+  p.intro(chalk.bgCyan.black(' arrow release '))
+
   if (!isWorkingDirectoryClean()) {
-    fail('Working directory is not clean. Commit or stash changes first.')
+    p.cancel('Working directory is not clean. Commit or stash changes first.')
+    process.exit(1)
   }
 
   const branch = exec('git branch --show-current')
   const stableVersion = getStableVersion(readJson(rootPackagePath).version || readPackageVersion('packages/core'))
-  const releaseTag = await resolveReleaseTag(branch, requestedTag)
+
+  // --- Release channel ---
+  const releaseTag = requestedTag
+    ? (validateReleaseTag(branch, requestedTag), requestedTag)
+    : await selectReleaseTag(branch)
+
+  if (p.isCancel(releaseTag)) {
+    p.cancel('Release cancelled.')
+    process.exit(0)
+  }
+
+  // --- Version bump ---
   const bumpType = requestedBump
     ? validateBumpType(requestedBump)
-    : await promptChoice(
-        'Select version bump type:',
-        [
-          { key: '1', value: 'patch', label: `patch (${stableVersion} -> ${bumpVersion(stableVersion, 'patch')})` },
-          { key: '2', value: 'minor', label: `minor (${stableVersion} -> ${bumpVersion(stableVersion, 'minor')})` },
-          { key: '3', value: 'major', label: `major (${stableVersion} -> ${bumpVersion(stableVersion, 'major')})` },
-        ]
-      )
+    : await p.select({
+        message: 'Version bump',
+        options: [
+          { value: 'patch', label: `patch`, hint: `${stableVersion} ${chalk.dim('->')} ${chalk.green(bumpVersion(stableVersion, 'patch'))}` },
+          { value: 'minor', label: `minor`, hint: `${stableVersion} ${chalk.dim('->')} ${chalk.green(bumpVersion(stableVersion, 'minor'))}` },
+          { value: 'major', label: `major`, hint: `${stableVersion} ${chalk.dim('->')} ${chalk.green(bumpVersion(stableVersion, 'major'))}` },
+        ],
+      })
+
+  if (p.isCancel(bumpType)) {
+    p.cancel('Release cancelled.')
+    process.exit(0)
+  }
+
   const nextStable = bumpVersion(stableVersion, bumpType)
   const commitHash = exec('git rev-parse --short=7 HEAD')
   const version = releaseTag === 'latest'
@@ -66,42 +87,183 @@ async function runInteractiveRelease({ requestedTag, requestedBump, dryRun, skip
     : `${nextStable}-${releaseTag}.${commitHash}`
   const gitTag = `v${version}`
 
-  process.stdout.write(
+  // --- Summary ---
+  p.note(
     [
-      '',
-      `Branch: ${branch}`,
-      `Version: ${version}`,
-      `Git tag: ${gitTag}`,
-      `npm tag: ${releaseTag}`,
-      '',
-    ].join('\n')
+      `${chalk.dim('Branch:')}    ${chalk.cyan(branch)}`,
+      `${chalk.dim('Version:')}   ${chalk.green(version)}`,
+      `${chalk.dim('Git tag:')}   ${chalk.yellow(gitTag)}`,
+      `${chalk.dim('npm tag:')}   ${chalk.magenta(releaseTag)}`,
+    ].join('\n'),
+    'Release summary'
   )
 
-  const confirmed = skipConfirm
-    ? true
-    : await promptConfirm(dryRun ? 'Continue with dry run?' : 'Continue with release?')
-  if (!confirmed) {
-    process.stdout.write('Release cancelled.\n')
-    process.exit(0)
+  // --- Confirm ---
+  if (!skipConfirm) {
+    const confirmed = await p.confirm({
+      message: dryRun ? 'Continue with dry run?' : 'Ship it?',
+    })
+
+    if (p.isCancel(confirmed) || !confirmed) {
+      p.cancel('Release cancelled.')
+      process.exit(0)
+    }
   }
 
-  if (releaseTag === 'latest') {
-    if (!dryRun) {
-      syncVersions(version)
-      exec('git add package.json packages')
-      exec(`git commit -m "chore: release ${gitTag}"`)
-      exec(`git tag ${gitTag}`)
-      exec('git push origin HEAD')
-      exec(`git push origin ${gitTag}`)
-    }
+  // --- Execute release ---
+  if (dryRun) {
+    p.outro(chalk.dim('Dry run complete — nothing was pushed.'))
     return
   }
 
-  if (!dryRun) {
+  const s = p.spinner()
+
+  if (releaseTag === 'latest') {
+    s.start('Syncing package versions')
+    syncVersions(version)
+    s.stop('Package versions synced')
+
+    s.start('Committing release')
+    exec('git add package.json packages')
+    exec(`git commit -m "chore: release ${gitTag}"`)
+    s.stop('Release committed')
+
+    s.start('Tagging & pushing')
+    exec(`git tag ${gitTag}`)
+    exec('git push origin HEAD')
+    exec(`git push origin ${gitTag}`)
+    s.stop('Tag pushed')
+  } else {
+    s.start('Tagging & pushing')
     exec(`git tag ${gitTag}`)
     exec(`git push origin ${gitTag}`)
+    s.stop('Tag pushed')
+  }
+
+  // --- Watch the GitHub Actions workflow ---
+  const repoSlug = getRepoSlug()
+  if (repoSlug) {
+    await watchWorkflow(repoSlug, gitTag)
+  }
+
+  p.outro(chalk.green(`Released ${gitTag}`))
+}
+
+async function selectReleaseTag(branch) {
+  const options = branch === 'main'
+    ? [
+        { value: 'latest', label: 'latest', hint: 'stable release' },
+        { value: 'next', label: 'next', hint: 'pre-release' },
+        { value: 'dev', label: 'dev', hint: 'development' },
+      ]
+    : [
+        { value: 'next', label: 'next', hint: 'pre-release' },
+        { value: 'dev', label: 'dev', hint: 'development' },
+      ]
+
+  return p.select({
+    message: branch === 'main'
+      ? 'Release channel'
+      : `Release channel ${chalk.dim(`(branch: ${branch})`)}`,
+    options,
+  })
+}
+
+async function watchWorkflow(repoSlug, gitTag) {
+  if (!hasGhCli()) {
+    p.log.info(
+      chalk.dim(`Watch the publish workflow at: https://github.com/${repoSlug}/actions`)
+    )
+    return
+  }
+
+  const shouldWatch = await p.confirm({
+    message: 'Watch publish workflow?',
+    initialValue: true,
+  })
+
+  if (p.isCancel(shouldWatch) || !shouldWatch) {
+    p.log.info(chalk.dim(`https://github.com/${repoSlug}/actions`))
+    return
+  }
+
+  const s = p.spinner()
+  s.start('Waiting for workflow to start')
+
+  // Wait for the workflow run to appear (triggered by the tag push)
+  let runId = ''
+  for (let i = 0; i < 30; i++) {
+    await sleep(2000)
+    try {
+      runId = exec(
+        `gh run list --repo ${repoSlug} --workflow=publish.yml --limit=1 --json databaseId,headBranch --jq '.[] | select(.headBranch=="${gitTag}") | .databaseId'`
+      )
+    } catch {
+      // gh may fail if the run isn't visible yet
+    }
+    if (runId) break
+  }
+
+  if (!runId) {
+    s.stop('Could not find workflow run')
+    p.log.warn(chalk.dim(`Check manually: https://github.com/${repoSlug}/actions`))
+    return
+  }
+
+  s.stop(`Workflow started ${chalk.dim(`(run #${runId})`)}`)
+  p.log.info(chalk.dim(`https://github.com/${repoSlug}/actions/runs/${runId}`))
+
+  // Poll for job status
+  const prevStatus = new Map()
+  let conclusion = ''
+
+  while (!conclusion) {
+    await sleep(5000)
+    try {
+      const json = exec(
+        `gh run view ${runId} --repo ${repoSlug} --json status,conclusion,jobs`
+      )
+      const run = JSON.parse(json)
+
+      // Print job status changes
+      for (const job of run.jobs || []) {
+        const prev = prevStatus.get(job.name)
+        if (prev !== job.status && prev !== 'completed') {
+          prevStatus.set(job.name, job.status)
+          const icon = job.conclusion === 'success'
+            ? chalk.green('*')
+            : job.conclusion === 'failure'
+              ? chalk.red('x')
+              : job.status === 'in_progress'
+                ? chalk.yellow('~')
+                : chalk.dim('-')
+          const label = job.conclusion === 'success'
+            ? chalk.green(job.name)
+            : job.conclusion === 'failure'
+              ? chalk.red(job.name)
+              : job.status === 'in_progress'
+                ? chalk.yellow(job.name)
+                : chalk.dim(job.name)
+          p.log.step(`${icon} ${label}`)
+        }
+      }
+
+      if (run.status === 'completed') {
+        conclusion = run.conclusion
+      }
+    } catch {
+      // transient API errors — just retry
+    }
+  }
+
+  if (conclusion === 'success') {
+    p.log.success(chalk.green('All packages published!'))
+  } else {
+    p.log.error(chalk.red(`Workflow ${conclusion}. Check: https://github.com/${repoSlug}/actions/runs/${runId}`))
   }
 }
+
+// ---- helpers ----
 
 function syncVersions(version) {
   const rootPackage = readJson(rootPackagePath)
@@ -122,36 +284,10 @@ function syncVersions(version) {
   writeJson(createArrowVersionsPath, versionMap)
 }
 
-async function resolveReleaseTag(branch, requestedTag) {
-  if (requestedTag) {
-    validateReleaseTag(branch, requestedTag)
-    return requestedTag
-  }
-
-  const options = branch === 'main'
-    ? [
-        { key: '1', value: 'latest', label: 'latest' },
-        { key: '2', value: 'next', label: 'next' },
-        { key: '3', value: 'dev', label: 'dev' },
-      ]
-    : [
-        { key: '1', value: 'next', label: 'next' },
-        { key: '2', value: 'dev', label: 'dev' },
-      ]
-
-  return promptChoice(
-    branch === 'main'
-      ? 'Select release channel:'
-      : 'Non-main branch detected. Select prerelease channel:',
-    options
-  )
-}
-
 function validateReleaseTag(branch, requestedTag) {
   if (!['latest', 'next', 'dev'].includes(requestedTag)) {
     fail(`Unknown release tag "${requestedTag}". Use latest, next, or dev.`)
   }
-
   if (requestedTag === 'latest' && branch !== 'main') {
     fail('Cannot publish latest from a non-main branch.')
   }
@@ -161,7 +297,6 @@ function validateBumpType(value) {
   if (!['patch', 'minor', 'major'].includes(value)) {
     fail(`Unknown bump type "${value}". Use patch, minor, or major.`)
   }
-
   return value
 }
 
@@ -175,12 +310,8 @@ function readPackageVersion(packageDir) {
 
 function bumpVersion(version, bumpType) {
   const parts = version.split('.').map(Number)
-  if (bumpType === 'major') {
-    return `${parts[0] + 1}.0.0`
-  }
-  if (bumpType === 'minor') {
-    return `${parts[0]}.${parts[1] + 1}.0`
-  }
+  if (bumpType === 'major') return `${parts[0] + 1}.0.0`
+  if (bumpType === 'minor') return `${parts[0]}.${parts[1] + 1}.0`
   return `${parts[0]}.${parts[1]}.${parts[2] + 1}`
 }
 
@@ -188,53 +319,35 @@ function isWorkingDirectoryClean() {
   return exec('git status --short') === ''
 }
 
-function readFlagValue(sourceArgs, flag) {
-  const direct = sourceArgs.find((value) => value.startsWith(`${flag}=`))
-  if (direct) {
-    return direct.slice(flag.length + 1)
-  }
-
-  const index = sourceArgs.indexOf(flag)
-  if (index === -1) {
+function getRepoSlug() {
+  try {
+    const url = exec('git remote get-url origin')
+    const match = url.match(/github\.com[/:](.+?)(?:\.git)?$/)
+    return match?.[1] || ''
+  } catch {
     return ''
   }
+}
 
+function hasGhCli() {
+  try {
+    execSync('gh --version', { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function readFlagValue(sourceArgs, flag) {
+  const direct = sourceArgs.find((value) => value.startsWith(`${flag}=`))
+  if (direct) return direct.slice(flag.length + 1)
+  const index = sourceArgs.indexOf(flag)
+  if (index === -1) return ''
   return sourceArgs[index + 1] ?? ''
-}
-
-async function promptChoice(message, options) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  })
-
-  try {
-    process.stdout.write(
-      `${message}\n${options.map((option) => `  ${option.key}. ${option.label}`).join('\n')}\n\n`
-    )
-    const answer = (await rl.question('Select an option: ')).trim() || options[0].key
-    const selected = options.find((option) => option.key === answer)
-    if (!selected) {
-      fail(`Unknown selection "${answer}".`)
-    }
-    return selected.value
-  } finally {
-    rl.close()
-  }
-}
-
-async function promptConfirm(message) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  })
-
-  try {
-    const answer = (await rl.question(`${message} [Y/n] `)).trim()
-    return answer === '' || /^y/i.test(answer)
-  } finally {
-    rl.close()
-  }
 }
 
 function exec(command) {
@@ -254,6 +367,6 @@ function writeJson(filePath, value) {
 }
 
 function fail(message) {
-  process.stderr.write(`${message}\n`)
+  p.cancel(message)
   process.exit(1)
 }
