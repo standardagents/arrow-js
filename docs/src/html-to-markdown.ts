@@ -254,9 +254,12 @@ function processListItems(
 
 function inlineMarkdown(html: string): string {
   let text = html
+  const codePlaceholders: string[] = []
   // Convert inline code
   text = text.replace(/<code[^>]*>([\s\S]*?)<\/code>/g, (_, inner) => {
-    return '`' + decodeEntities(inner.replace(/<[^>]+>/g, '')) + '`'
+    const placeholder = `__INLINE_CODE_${codePlaceholders.length}__`
+    codePlaceholders.push('`' + decodeEntities(inner) + '`')
+    return placeholder
   })
   // Convert links
   text = text.replace(
@@ -269,5 +272,8 @@ function inlineMarkdown(html: string): string {
   text = text.replace(/<(?:em|i)>([\s\S]*?)<\/(?:em|i)>/g, '*$1*')
   // Strip remaining tags
   text = decodeEntities(text.replace(/<[^>]+>/g, ''))
+  for (const [index, code] of codePlaceholders.entries()) {
+    text = text.replace(`__INLINE_CODE_${index}__`, code)
+  }
   return collapseWhitespace(text)
 }
