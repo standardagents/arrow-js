@@ -97,11 +97,23 @@ export const playgroundExampleMeta = [
       'Run untrusted Arrow code in a WASM VM with isolated DOM, restricted fetch, and one-way output.',
     sourceUrl: `${examplesBaseUrl}/sandbox`,
   },
+
 ]
 
 export const docsExampleMeta = playgroundExampleMeta.filter(
   (example) => example.id !== starterExampleId
 )
+
+export const showcaseMeta = [
+  {
+    title: 'Forma — AI-Native CMS',
+    icon: '\u{1F916}',
+    href: 'https://github.com/JussMor/forma-ai-cms',
+    description:
+      'Full-stack app builder where you describe what you want in plain language and Claude generates schemas, typed API endpoints, and live ArrowJS UI modules — all wired together automatically.',
+    cta: 'View on GitHub',
+  },
+]
 
 export function playgroundExampleHref(id) {
   return id === starterExampleId

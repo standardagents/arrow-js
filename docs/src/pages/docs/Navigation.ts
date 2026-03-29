@@ -2,6 +2,7 @@ import { html, reactive } from '@arrow-js/core'
 import {
   docsExampleMeta,
   playgroundExampleHref,
+  showcaseMeta,
 } from '../../../play/example-meta.js'
 
 type NavItem =
@@ -59,9 +60,18 @@ const navigation: NavGroup[] = [
       })),
     ],
   },
+  {
+    title: 'Made with Arrow',
+    items: showcaseMeta.map((entry) => ({
+      label: entry.title,
+      href: entry.href,
+    })),
+  },
 ]
 
-const allIds = navigation.flatMap((group) => group.items.filter(isIdItem).map((item) => item.id))
+const allIds = navigation.flatMap((group) =>
+  group.items.filter(isIdItem).map((item) => item.id),
+)
 const spy = reactive({ active: '' })
 
 function initScrollSpy() {
@@ -71,8 +81,7 @@ function initScrollSpy() {
 
   const update = () => {
     const doc = document.documentElement
-    const atBottom =
-      doc.scrollTop + doc.clientHeight >= doc.scrollHeight - 10
+    const atBottom = doc.scrollTop + doc.clientHeight >= doc.scrollHeight - 10
 
     if (atBottom) {
       const lastId = allIds.at(-1)
@@ -101,7 +110,7 @@ function initScrollSpy() {
       }
       update()
     },
-    { rootMargin: '-80px 0px -60% 0px' }
+    { rootMargin: '-80px 0px -60% 0px' },
   )
 
   window.addEventListener('scroll', update, { passive: true })
@@ -124,16 +133,17 @@ function NavGroupView(group: NavGroup) {
   return html`
     <div class="mb-6">
       <div class="nav-group-title">${group.title}</div>
-      ${group.items.map(
-        (item) =>
-          isHrefItem(item)
-            ? html`<a href="${item.href}" class="nav-link nav-link-external">${item.label}</a>`
-            : html`<a
-                href="${`#${item.id}`}"
-                class="nav-link"
-                data-active="${() => (spy.active === item.id ? '' : false)}"
-                >${item.label}</a
-              >`
+      ${group.items.map((item) =>
+        isHrefItem(item)
+          ? html`<a href="${item.href}" class="nav-link nav-link-external"
+              >${item.label}</a
+            >`
+          : html`<a
+              href="${`#${item.id}`}"
+              class="nav-link"
+              data-active="${() => (spy.active === item.id ? '' : false)}"
+              >${item.label}</a
+            >`,
       )}
     </div>
   `
