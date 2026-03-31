@@ -67,7 +67,9 @@ export interface PropertyObserver<T> {
  */
 type Dependencies = Array<number | PropertyKey>
 
-type ListenerSlot = Set<PropertyObserver<unknown>>
+type ListenerSlot =
+  | PropertyObserver<unknown>
+  | Array<PropertyObserver<unknown>>
 type ListenerMap = Partial<Record<PropertyKey, ListenerSlot>>
 
 /**
@@ -339,7 +341,13 @@ function emit(
   const targetListeners = listeners[id]
   const propertyListeners = targetListeners[key]
   if (propertyListeners) {
-    for (const callback of propertyListeners) callback(newValue, oldValue)
+    if (Array.isArray(propertyListeners)) {
+      for (let i = 0; i < propertyListeners.length; i++) {
+        propertyListeners[i](newValue, oldValue)
+      }
+    } else {
+      propertyListeners(newValue, oldValue)
+    }
   }
   if (notifyParents) {
     emitParents(id)
@@ -460,7 +468,16 @@ function addListener(
   key: PropertyKey,
   callback: PropertyObserver<unknown>
 ) {
-  ;(targetListeners[key] ??= new Set()).add(callback)
+  const slot = targetListeners[key]
+  if (!slot) {
+    targetListeners[key] = callback
+    return
+  }
+  if (Array.isArray(slot)) {
+    if (!slot.includes(callback)) slot.push(callback)
+    return
+  }
+  if (slot !== callback) targetListeners[key] = [slot, callback]
 }
 
 function removeListener(
@@ -470,8 +487,17 @@ function removeListener(
 ) {
   const slot = targetListeners[key]
   if (!slot) return
-  slot.delete(callback)
-  if (!slot.size) {
+  if (Array.isArray(slot)) {
+    const index = slot.indexOf(callback)
+    if (index < 0) return
+    if (slot.length === 2) {
+      targetListeners[key] = slot[index ? 0 : 1]
+      return
+    }
+    slot.splice(index, 1)
+    return
+  }
+  if (slot === callback) {
     delete targetListeners[key]
   }
 }

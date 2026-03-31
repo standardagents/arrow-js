@@ -824,6 +824,42 @@ describe('html', () => {
     </ul>`)
   })
 
+  it('updates keyed templates when the same key changes template shape', async () => {
+    const data = reactive({
+      list: [
+        { id: 1, label: 'Alpha', active: false },
+        { id: 2, label: 'Beta', active: false },
+      ],
+    })
+    const parent = document.createElement('div')
+
+    html`<ul>
+      ${() =>
+        data.list.map((item) =>
+          (item.active
+            ? html`<li class="danger">${item.label}</li>`
+            : html`<li>${item.label}</li>`).key(item.id)
+        )}
+    </ul>`(parent)
+
+    expect(parent.innerHTML).toBe(`<ul>
+      <li>Alpha</li><li>Beta</li>
+    </ul>`)
+
+    data.list[0].active = true
+    await nextTick()
+    expect(parent.innerHTML).toBe(`<ul>
+      <li class="danger">Alpha</li><li>Beta</li>
+    </ul>`)
+
+    data.list[0].active = false
+    data.list[1].active = true
+    await nextTick()
+    expect(parent.innerHTML).toBe(`<ul>
+      <li>Alpha</li><li class="danger">Beta</li>
+    </ul>`)
+  })
+
   it('can render results of multiple data objects', async () => {
     const a = reactive({ price: 45 })
     const b = reactive({ quantity: 25 })

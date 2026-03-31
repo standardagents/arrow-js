@@ -1,7 +1,9 @@
-import { ArrowExpression } from './html'
+import { setAttr } from './dom'
+import type { ArrowExpression } from './html'
 
 export const expressionPool: Array<number | ArrowExpression | undefined> = []
-const expressionObservers: Array<CallableFunction | undefined> = []
+const expressionObservers: Array<CallableFunction | Text | Element | undefined> = []
+const expressionObserverAttrs: Array<string | undefined> = []
 const freeExpressionPointers: number[][] = []
 let cursor = 0
 
@@ -24,15 +26,22 @@ export function writeExpressions(
     const target = pointer + i
     if (Object.is(expressionPool[target], nextValue)) continue
     expressionPool[target] = nextValue
-    expressionObservers[target]?.(nextValue)
+    const observer = expressionObservers[target]
+    if (!observer) continue
+    const attr = expressionObserverAttrs[target]
+    if (attr !== undefined) setAttr(observer as Element, attr, nextValue as string)
+    else if (typeof observer === 'function') observer(nextValue)
+    else (observer as Text).data = nextValue || nextValue === 0 ? (nextValue as string) : ''
   }
 }
 
 export function onExpressionUpdate(
   pointer: number,
-  observer?: CallableFunction
+  observer?: CallableFunction | Text | Element,
+  attrName?: string
 ): void {
   expressionObservers[pointer] = observer
+  expressionObserverAttrs[pointer] = attrName
 }
 
 export function releaseExpressions(pointer: number): void {
@@ -41,6 +50,7 @@ export function releaseExpressions(pointer: number): void {
   for (let i = 0; i <= len; i++) {
     expressionPool[pointer + i] = undefined
     expressionObservers[pointer + i] = undefined
+    expressionObserverAttrs[pointer + i] = undefined
   }
   ;(freeExpressionPointers[len] ??= []).push(pointer)
 }

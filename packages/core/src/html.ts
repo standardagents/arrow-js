@@ -131,7 +131,6 @@ type InternalTemplate = ArrowTemplate & {
   _a?: ArrayLike<unknown>
   _h?: Chunk
   _m?: boolean
-  _o?: number
   _p?: ChunkProto
   _s?: TemplateStringsArray | string[]
 }
@@ -177,6 +176,10 @@ function moveDOMRef(
   }
 }
 
+function canSyncTemplateChunk(template: InternalTemplate, chunk: Chunk) {
+  return chunk.g === getChunkProto(template).g
+}
+
 function getChunkProto(template: InternalTemplate): ChunkProto {
   const cached = template._p
   if (cached) return cached
@@ -206,6 +209,7 @@ function resolveChunkProto(rawStrings: TemplateStringsArray | string[]): ChunkPr
   const template = document.createElement('template')
   template.innerHTML = signature
   const paths = createPaths(template.content)
+  normalizeNodePlaceholders(template.content)
   const expressions = rawStrings.length - 1
   let count = 0
   for (let i = 0; i < paths[0].length;) {
@@ -233,6 +237,13 @@ function syncTemplateToChunk(
   chunk: Chunk,
   mounted = false
 ) {
+  if (chunk._t === template) {
+    chunk.k = template._k
+    chunk.i = template._i
+    template._h = chunk
+    template._m = mounted
+    return
+  }
   if (chunk._t && chunk._t !== template) {
     ;(chunk._t as InternalTemplate)._m = false
     ;(chunk._t as InternalTemplate)._h = undefined
@@ -242,7 +253,7 @@ function syncTemplateToChunk(
   chunk.i = template._i
   template._h = chunk
   template._m = mounted
-  writeExpressions(template._a!, chunk.e, template._o)
+  writeExpressions(template._a!, chunk.e)
 }
 
 function growChunkPool(size: number) {
@@ -371,15 +382,16 @@ export function html(
   strings: TemplateStringsArray | string[],
   ...expSlots: ArrowExpression[]
 ): ArrowTemplate
-export function html(strings: TemplateStringsArray | string[]): ArrowTemplate {
-  const args = arguments
+export function html(
+  strings: TemplateStringsArray | string[],
+  ...expSlots: ArrowExpression[]
+): ArrowTemplate {
   const template = ((el?: ParentNode) =>
     renderTemplate(template as InternalTemplate, el)) as InternalTemplate
   template.isT = true
-  template._a = args
+  template._a = expSlots
   template._c = ensureChunk
   template._m = false
-  template._o = 1
   template._s = strings
   template.key = setTemplateKey
   template.id = setTemplateId
@@ -412,7 +424,6 @@ function renderTemplate(template: InternalTemplate, el?: ParentNode) {
   if (!template._m) {
     template._m = true
     if (!chunk.b) {
-      writeExpressions(template._a!, chunk.e, template._o)
       return createBindings(chunk, el)
     }
     moveDOMRef(chunk.ref, el ?? chunk.dom)
@@ -465,6 +476,7 @@ function createNodeBinding(
   let fragment: DocumentFragment | Text
   const expression = expressionPool[expressionPointer]
   const capture = getHydrationCapture()
+  const textNode = node.nodeType === 3 ? (node as Text) : null
 
   if (isCmp(expression) || isTpl(expression) || Array.isArray(expression)) {
     parentChunk.r = false
@@ -476,7 +488,7 @@ function createNodeBinding(
       })
     }
   } else if (typeof expression === 'function') {
-    let target: Text | null = null
+    let target: Text | null = textNode
     let render: RenderController | null = null
     const [frag, stop] = watch(expressionPointer, (value) => {
       if (!render) {
@@ -490,10 +502,7 @@ function createNodeBinding(
           }
           return next
         }
-        if (!target) {
-          target = document.createTextNode(renderText(value))
-          return target
-        }
+        if (!target) target = document.createTextNode('')
         const next = renderText(value)
         if (target.nodeValue !== next) target.nodeValue = next
         return target
@@ -512,17 +521,20 @@ function createNodeBinding(
       })
     }
   } else {
-    let target = document.createTextNode(renderText(expression))
+    let target = textNode ?? document.createTextNode('')
+    target.data = renderText(expression)
     fragment = target
-    onExpressionUpdate(
-      expressionPointer,
-      (value: string) => (target.nodeValue = renderText(value))
-    )
     if (capture) {
+      onExpressionUpdate(
+        expressionPointer,
+        (value: string) => (target.data = renderText(value))
+      )
       registerHydrationHook(parentChunk, (map) => {
         const adopted = map.get(target)
         if (adopted) target = adopted as Text
       })
+    } else {
+      onExpressionUpdate(expressionPointer, target)
     }
   }
 
@@ -540,7 +552,7 @@ function createNodeBinding(
     if (node === parentChunk.ref.l) parentChunk.ref.l = last
   }
 
-  node.parentNode?.replaceChild(fragment, node)
+  if (fragment !== node) node.parentNode?.replaceChild(fragment, node)
 }
 
 function createAttrBinding(
@@ -599,15 +611,22 @@ function createAttrBinding(
     }
   } else {
     setAttr(target, attrName, expression as string | number | boolean | null)
-    onExpressionUpdate(expressionPointer, (value: string) =>
-      setAttr(target, attrName, value)
-    )
+    if (capture) {
+      onExpressionUpdate(expressionPointer, (value: string) =>
+        setAttr(target, attrName, value)
+      )
+    } else {
+      onExpressionUpdate(expressionPointer, target, attrName)
+    }
   }
 }
 
 function createRenderFn(capture: HydrationCapture | null): RenderController {
   let previous: Chunk | Text | Rendered[]
-  const keyedChunks: Record<Exclude<ArrowTemplateKey, undefined>, Chunk> = {}
+  let keyedChunks = Object.create(null) as Record<
+    Exclude<ArrowTemplateKey, undefined>,
+    Chunk
+  >
 
   const render = function render(
     renderable: ArrowRenderable
@@ -642,10 +661,89 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
         let i = 0
         const renderableLength = renderable.length
         const previousLength = previous.length
+        if (
+          renderableLength &&
+          previousLength === 1 &&
+          !isChunk(previous[0]) &&
+          !(previous[0] as Text).data
+        ) {
+          const [fragment, rendered] = renderList(renderable)
+          ;(previous[0] as Text).replaceWith(fragment)
+          previous = rendered
+          return
+        }
+        if (renderableLength === previousLength) {
+          const renderedList = new Array(renderableLength) as Rendered[]
+          for (; i < renderableLength; i++) {
+            const item = renderable[i] as
+              | string
+              | number
+              | boolean
+              | ComponentCall
+              | ArrowTemplate
+            if ((isCmp(item) && item.k !== undefined) || (isTpl(item) && item._k !== undefined)) {
+              i = -1
+              break
+            }
+            const prev = previous[i]
+            if (
+              isTpl(item) &&
+              isChunk(prev) &&
+              prev._t === item &&
+              (item as InternalTemplate)._h === prev &&
+              (item as InternalTemplate)._m
+            ) {
+              renderedList[i] = prev
+              continue
+            }
+            if (isTpl(item) && isChunk(prev)) {
+              const proto = item._p ?? getChunkProto(item as InternalTemplate)
+              if (prev.g === proto.g) {
+                syncTemplateToChunk(item as InternalTemplate, prev, true)
+                renderedList[i] = prev
+                continue
+              }
+            }
+            renderedList[i] = patch(item, prev) as Rendered
+          }
+          if (i === renderableLength) {
+            previous = renderedList
+            return
+          }
+          i = 0
+        }
         const keyedList = patchKeyedList(renderable, previous)
         if (keyedList) {
           previous = keyedList
           return
+        }
+        if (renderableLength > previousLength && previousLength) {
+          for (; i < previousLength; i++) {
+            const item = renderable[i] as ArrowTemplate
+            const prev = previous[i]
+            if (
+              isTpl(item) &&
+              isChunk(prev) &&
+              prev._t === item &&
+              (item as InternalTemplate)._h === prev &&
+              (item as InternalTemplate)._m
+            ) {
+              continue
+            }
+            i = -1
+            break
+          }
+          if (i === previousLength) {
+            const fragment = document.createDocumentFragment()
+            const renderedList = previous.slice() as Rendered[]
+            for (i = previousLength; i < renderableLength; i++) {
+              renderedList[i] = mountItem(renderable[i], fragment)
+            }
+            getNode(previous[previousLength - 1]).after(fragment)
+            previous = renderedList
+            return
+          }
+          i = 0
         }
         let anchor: ChildNode | undefined
         const renderedList: Rendered[] = []
@@ -669,8 +767,10 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
             key in keyedChunks
           ) {
             const keyedChunk = keyedChunks[key]
-            syncTemplateToChunk(item as InternalTemplate, keyedChunk, true)
-            item = keyedChunk._t
+            if (canSyncTemplateChunk(item as InternalTemplate, keyedChunk)) {
+              syncTemplateToChunk(item as InternalTemplate, keyedChunk, true)
+              item = keyedChunk._t
+            }
           }
           if (i > previousLength - 1) {
             renderedList[i] = mountItem(item, updaterFrag!)
@@ -694,11 +794,13 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
           ;(used as Rendered & { mk?: number }).mk = mark
         }
         if (!renderableLength) {
-          getNode(previous).after(
-            (renderedList[0] = document.createTextNode(''))
-          )
-          for (i = 0; i < previousLength; i++) forgetChunk(previous[i])
-          unmount(previous)
+          const placeholder = (renderedList[0] = document.createTextNode(''))
+          const sync = canSyncUnmount(previous)
+          const detached = sync && replaceListWithPlaceholder(previous, placeholder)
+          if (!detached) getNode(previous).after(placeholder)
+          keyedChunks = Object.create(null)
+          if (sync) removeUnmounted(previous, detached)
+          else unmount(previous)
           previous = renderedList
           return
         } else if (renderableLength > previousLength) {
@@ -713,6 +815,7 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
         previous = renderedList
       }
     } else {
+      if (Array.isArray(previous)) keyedChunks = Object.create(null)
       previous = patch(renderable, previous)
     }
   } as RenderController
@@ -754,6 +857,7 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
     chunk: Chunk
   ) {
     if (isCmp(renderable)) return syncComponentChunk(renderable, chunk)
+    if (!canSyncTemplateChunk(renderable as InternalTemplate, chunk)) return false
     syncTemplateToChunk(renderable as InternalTemplate, chunk, true)
     return true
   }
@@ -779,9 +883,13 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
     const previousLength = previousList.length
     if (!renderableLength) {
       const placeholder = document.createTextNode('')
-      getNode(previousList).after(placeholder)
-      for (let i = 0; i < previousLength; i++) forgetChunk(previousList[i])
-      unmount(previousList)
+      const sync = canSyncUnmount(previousList)
+      const detached =
+        sync && replaceListWithPlaceholder(previousList, placeholder)
+      if (!detached) getNode(previousList).after(placeholder)
+      keyedChunks = Object.create(null)
+      if (sync) removeUnmounted(previousList, detached)
+      else unmount(previousList)
       return [placeholder]
     }
 
@@ -802,7 +910,17 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       const key = getRenderableKey(item)
       if (key === undefined || key !== rendered.k) break
       sharedPrefixKeys[key] = 1
-      if (!syncKeyedRenderable(item, rendered)) return null
+      if (
+        !(
+          isTpl(item) &&
+          rendered._t === item &&
+          (item as InternalTemplate)._h === rendered &&
+          (item as InternalTemplate)._m
+        ) &&
+        !syncKeyedRenderable(item, rendered)
+      ) {
+        return null
+      }
       renderedList[sharedPrefix] = rendered
     }
     if (sharedPrefix === previousLength) {
@@ -833,41 +951,8 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       return renderedList
     }
 
-    const previousIndexByKey = Object.create(null) as Record<
-      Exclude<ArrowTemplateKey, undefined>,
-      number
-    >
-    for (let i = 0; i < previousLength; i++) {
-      const rendered = previousList[i]
-      if (!isChunk(rendered) || rendered.k === undefined) return null
-      const key = rendered.k as Exclude<ArrowTemplateKey, undefined>
-      if (key in previousIndexByKey) {
-        return null
-      }
-      previousIndexByKey[key] = i + 1
-    }
-
-    const nextKeyList = new Array(renderableLength) as Array<
-      Exclude<ArrowTemplateKey, undefined>
-    >
-    const nextKeys = Object.create(null) as Record<
-      Exclude<ArrowTemplateKey, undefined>,
-      1
-    >
-    let overlaps = 0
-    for (let i = 0; i < renderableLength; i++) {
-      const item = renderable[i]
-      const key =
-        isCmp(item) || isTpl(item) ? getRenderableKey(item) : undefined
-      if (key === undefined || key in nextKeys) return null
-      nextKeyList[i] = key
-      nextKeys[key] = 1
-      if (key in previousIndexByKey) overlaps++
-    }
-    if (!overlaps) return null
-
-    let oldStart = 0
-    let newStart = 0
+    let oldStart = sharedPrefix
+    let newStart = sharedPrefix
     let oldEnd = previousLength - 1
     let newEnd = renderableLength - 1
 
@@ -876,11 +961,26 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       const endChunk = previousList[oldEnd] as Chunk
       const startKey = startChunk.k as Exclude<ArrowTemplateKey, undefined>
       const endKey = endChunk.k as Exclude<ArrowTemplateKey, undefined>
-      const nextStartKey = nextKeyList[newStart]
-      const nextEndKey = nextKeyList[newEnd]
+      const nextStart = renderable[newStart]
+      const nextEnd = renderable[newEnd]
+      const nextStartKey =
+        isCmp(nextStart) || isTpl(nextStart)
+          ? getRenderableKey(nextStart)
+          : undefined
+      const nextEndKey =
+        isCmp(nextEnd) || isTpl(nextEnd) ? getRenderableKey(nextEnd) : undefined
+      if (nextStartKey === undefined || nextEndKey === undefined) return null
 
       if (startKey === nextStartKey) {
-        if (!syncKeyedRenderable(renderable[newStart] as ComponentCall | ArrowTemplate, startChunk)) {
+        if (
+          !(
+            isTpl(nextStart) &&
+            startChunk._t === nextStart &&
+            (nextStart as InternalTemplate)._h === startChunk &&
+            (nextStart as InternalTemplate)._m
+          ) &&
+          !syncKeyedRenderable(nextStart as ComponentCall | ArrowTemplate, startChunk)
+        ) {
           return null
         }
         renderedList[newStart++] = startChunk
@@ -888,7 +988,15 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
         continue
       }
       if (endKey === nextEndKey) {
-        if (!syncKeyedRenderable(renderable[newEnd] as ComponentCall | ArrowTemplate, endChunk)) {
+        if (
+          !(
+            isTpl(nextEnd) &&
+            endChunk._t === nextEnd &&
+            (nextEnd as InternalTemplate)._h === endChunk &&
+            (nextEnd as InternalTemplate)._m
+          ) &&
+          !syncKeyedRenderable(nextEnd as ComponentCall | ArrowTemplate, endChunk)
+        ) {
           return null
         }
         renderedList[newEnd--] = endChunk
@@ -896,7 +1004,15 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
         continue
       }
       if (startKey === nextEndKey) {
-        if (!syncKeyedRenderable(renderable[newEnd] as ComponentCall | ArrowTemplate, startChunk)) {
+        if (
+          !(
+            isTpl(nextEnd) &&
+            startChunk._t === nextEnd &&
+            (nextEnd as InternalTemplate)._h === startChunk &&
+            (nextEnd as InternalTemplate)._m
+          ) &&
+          !syncKeyedRenderable(nextEnd as ComponentCall | ArrowTemplate, startChunk)
+        ) {
           return null
         }
         moveDOMRef(
@@ -909,7 +1025,15 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
         continue
       }
       if (endKey === nextStartKey) {
-        if (!syncKeyedRenderable(renderable[newStart] as ComponentCall | ArrowTemplate, endChunk)) {
+        if (
+          !(
+            isTpl(nextStart) &&
+            endChunk._t === nextStart &&
+            (nextStart as InternalTemplate)._h === endChunk &&
+            (nextStart as InternalTemplate)._m
+          ) &&
+          !syncKeyedRenderable(nextStart as ComponentCall | ArrowTemplate, endChunk)
+        ) {
           return null
         }
         moveDOMRef(endChunk.ref, parent, getNode(startChunk, undefined, true))
@@ -945,13 +1069,32 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       return renderedList
     }
 
+    const previousIndexByKey = Object.create(null) as Record<
+      Exclude<ArrowTemplateKey, undefined>,
+      number
+    >
+    for (let i = oldStart; i <= oldEnd; i++) {
+      const rendered = previousList[i]
+      if (!isChunk(rendered) || rendered.k === undefined) return null
+      const key = rendered.k as Exclude<ArrowTemplateKey, undefined>
+      if (key in previousIndexByKey) return null
+      previousIndexByKey[key] = i + 1
+    }
+
     const middleIndexByKey = Object.create(null) as Record<
       Exclude<ArrowTemplateKey, undefined>,
       number
     >
+    let overlaps = 0
     for (let i = newStart; i <= newEnd; i++) {
-      middleIndexByKey[nextKeyList[i]] = i + 1
+      const item = renderable[i]
+      const key =
+        isCmp(item) || isTpl(item) ? getRenderableKey(item) : undefined
+      if (key === undefined || key in middleIndexByKey) return null
+      middleIndexByKey[key] = i + 1
+      if (key in previousIndexByKey) overlaps++
     }
+    if (!overlaps) return null
 
     for (let i = oldStart; i <= oldEnd; i++) {
       const stale = previousList[i] as Chunk
@@ -1038,10 +1181,12 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       const key = template._k
       if (key !== undefined && key in keyedChunks) {
         const keyedChunk = keyedChunks[key]
-        syncTemplateToChunk(template, keyedChunk, true)
-        if (keyedChunk === prev) return prev
-        moveChunkIntoPlace(keyedChunk, prev, anchor)
-        return keyedChunk
+        if (canSyncTemplateChunk(template, keyedChunk)) {
+          syncTemplateToChunk(template, keyedChunk, true)
+          if (keyedChunk === prev) return prev
+          moveChunkIntoPlace(keyedChunk, prev, anchor)
+          return keyedChunk
+        }
       }
       const proto = getChunkProto(template)
       if (isChunk(prev) && prev.g === proto.g) {
@@ -1075,7 +1220,7 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       return mountChunkFragment(fragment, chunk)
     }
     if (isTpl(item)) {
-      fragment.appendChild(item())
+      item(fragment)
       const chunk = item._c()
       rememberKeyedChunk(chunk)
       return mountChunkFragment(fragment, chunk)
@@ -1210,6 +1355,29 @@ function recycleChunk(chunk: Chunk, detached = false) {
 
 let unmountQueued = false
 
+function canSyncUnmount(chunk: Array<Chunk | Text>) {
+  for (let i = 0; i < chunk.length; i++) {
+    const item = chunk[i]
+    if (isChunk(item) && !item.r) return false
+  }
+  return true
+}
+
+function replaceListWithPlaceholder(
+  chunk: Array<Chunk | Text>,
+  placeholder: Text
+) {
+  if (!chunk.length) return false
+  const first = getNode(chunk[0], undefined, true)
+  const last = getNode(chunk[chunk.length - 1])
+  const parent = first.parentNode
+  if (!parent || first !== parent.firstChild || last !== parent.lastChild) {
+    return false
+  }
+  parent.replaceChildren(placeholder)
+  return true
+}
+
 function removeUnmounted(
   chunk:
     | Chunk
@@ -1229,18 +1397,42 @@ function removeUnmounted(
       const last = getNode(chunk[chunk.length - 1])
       const parent = first.parentNode
       if (parent) {
-        const range = document.createRange()
-        range.setStartBefore(first)
-        range.setEndAfter(last)
-        range.deleteContents()
+        if (first === parent.firstChild && last === parent.lastChild) {
+          parent.textContent = ''
+        } else {
+          const range = document.createRange()
+          range.setStartBefore(first)
+          range.setEndAfter(last)
+          range.deleteContents()
+        }
         detached = true
       }
     }
+    let bucket: StaleBucket | undefined
+    let signature = ''
     for (let i = 0; i < chunk.length; i++) {
       const item = chunk[i]
       if (isChunk(item)) {
-        if (item.r) recycleChunk(item, detached)
-        else destroyChunk(item, detached)
+        if (!item.r) {
+          destroyChunk(item, detached)
+          continue
+        }
+        if (!detached) moveDOMRef(item.ref, item.dom)
+        ;(item._t as InternalTemplate)._m = false
+        ;(item._t as InternalTemplate)._h = undefined
+        if (item.st) continue
+        item.st = true
+        if (signature !== item.g) {
+          signature = item.g
+          bucket = staleBySignature.get(signature)
+          if (!bucket) {
+            bucket = {}
+            staleBySignature.set(signature, bucket)
+          }
+        }
+        item.bkn = bucket!.h
+        bucket!.h = item
+        if (item.i !== undefined) staleById.set(item.i, item)
       } else if (!detached) {
         item.remove()
       }
@@ -1361,4 +1553,22 @@ function createPaths(dom: DocumentFragment): Chunk['paths'] {
     path.pop()
   }
   return [pathTape, attrNames]
+}
+
+function normalizeNodePlaceholders(dom: DocumentFragment) {
+  const walk = (node: Node) => {
+    const children = node.childNodes
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i]
+      if (child.nodeType === 8 && (child as Comment).data === delimiter) {
+        node.replaceChild(document.createTextNode(''), child)
+        continue
+      }
+      if (child.nodeType === 3 && child.nodeValue === delimiterComment) {
+        child.nodeValue = ''
+      }
+      if (child.firstChild) walk(child)
+    }
+  }
+  walk(dom)
 }
