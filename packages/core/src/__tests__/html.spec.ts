@@ -795,6 +795,34 @@ describe('html', () => {
     expect(after.map((item) => item.textContent)).toEqual(['a', 'b', 'c', 'd', 'e'])
   })
 
+  it('replaces keyed rows when the next list has no overlapping keys', async () => {
+    const data = reactive({
+      list: [
+        { name: 'a', id: 1 },
+        { name: 'b', id: 2 },
+        { name: 'c', id: 3 },
+      ],
+    })
+    const parent = document.createElement('div')
+    html`<ul>
+      ${() =>
+        data.list.map((item: User) => html`<li>${item.name}</li>`.key(item.id))}
+    </ul>`(parent)
+
+    const before = [...parent.querySelectorAll('li')]
+
+    data.list = [
+      { name: 'd', id: 4 },
+      { name: 'e', id: 5 },
+      { name: 'f', id: 6 },
+    ]
+    await nextTick()
+
+    const after = [...parent.querySelectorAll('li')]
+    expect(after.map((item) => item.textContent)).toEqual(['d', 'e', 'f'])
+    expect(after.some((item) => before.includes(item))).toBe(false)
+  })
+
   it('can update the values in keyed nodes', async () => {
     const data = reactive({
       list: [

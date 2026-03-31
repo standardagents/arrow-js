@@ -1095,7 +1095,28 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
       middleIndexByKey[key] = i + 1
       if (key in previousIndexByKey) overlaps++
     }
-    if (!overlaps) return null
+    if (!overlaps) {
+      const before = getNode(previousList[oldEnd]).nextSibling as ChildNode | null
+      const first = getNode(previousList[oldStart], undefined, true)
+      const last = getNode(previousList[oldEnd])
+      const range = document.createRange()
+      range.setStartBefore(first)
+      range.setEndAfter(last)
+      range.deleteContents()
+      for (let i = oldStart; i <= oldEnd; i++) {
+        const stale = previousList[i] as Chunk
+        forgetChunk(stale)
+        destroyChunk(stale, true)
+      }
+      const fragment = document.createDocumentFragment()
+      for (let i = newStart; i <= newEnd; i++) {
+        const item = renderable[i]
+        if (!isCmp(item) && !isTpl(item)) return null
+        renderedList[i] = mountItem(item, fragment)
+      }
+      parent.insertBefore(fragment, before)
+      return renderedList
+    }
 
     for (let i = oldStart; i <= oldEnd; i++) {
       const stale = previousList[i] as Chunk
