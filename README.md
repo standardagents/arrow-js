@@ -3,7 +3,7 @@
 </p>
 
 ![test badge](https://github.com/standardagents/arrow-js/actions/workflows/tests.yml/badge.svg)
-![size badge](https://img.badgesize.io/https://cdn.jsdelivr.net/npm/@arrow-js/core@latest/dist/index.min.mjs.svg?compression=brotli)
+![size badge](https://img.shields.io/endpoint?url=https%3A%2F%2Farrow-js.com%2Fbadges%2Fcore-size.json)
 [![npm version](https://badge.fury.io/js/@arrow-js%2Fcore.svg)](https://badge.fury.io/js/@arrow-js%2Fcore)
 
 ## The UI framework for coding agents
