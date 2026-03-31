@@ -697,9 +697,10 @@ function createRenderFn(capture: HydrationCapture | null): RenderController {
               continue
             }
             if (isTpl(item) && isChunk(prev)) {
-              const proto = item._p ?? getChunkProto(item as InternalTemplate)
+              const template = item as InternalTemplate
+              const proto = template._p ?? getChunkProto(template)
               if (prev.g === proto.g) {
-                syncTemplateToChunk(item as InternalTemplate, prev, true)
+                syncTemplateToChunk(template, prev, true)
                 renderedList[i] = prev
                 continue
               }
