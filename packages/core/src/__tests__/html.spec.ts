@@ -1,4 +1,4 @@
-import { html, reactive, nextTick, ArrowTemplate } from '..'
+import { html, svg, reactive, nextTick, ArrowTemplate } from '..'
 import { click, setValue } from './utils/events'
 import { describe, it, expect, vi } from 'vitest'
 import {
@@ -1277,6 +1277,52 @@ describe('html', () => {
       </tbody>
     </table>`(parent)
     expect(parent.innerHTML).toMatchSnapshot()
+  })
+
+  it('renders nested svg templates in the svg namespace', () => {
+    const parent = document.createElement('div')
+    const values = [40, 20]
+    html`<svg width="100" height="100" viewBox="0 0 100 100">
+      ${values.map(
+        (value, index) => svg`<rect
+          x="${index * 10}"
+          y="${100 - value}"
+          width="9"
+          height="${value}"
+          fill="red"
+        />`
+      )}
+    </svg>`(parent)
+
+    const rects = Array.from(parent.querySelectorAll('rect'))
+    expect(rects).toHaveLength(2)
+    expect(rects[0].namespaceURI).toBe('http://www.w3.org/2000/svg')
+    expect(rects[0].getAttribute('fill')).toBe('red')
+  })
+
+  it('updates svg template lists reactively', async () => {
+    const parent = document.createElement('div')
+    const data = reactive({ values: [25] })
+    html`<svg width="100" height="100" viewBox="0 0 100 100">
+      ${() =>
+        data.values.map(
+          (value, index) => svg`<rect
+            x="${index * 10}"
+            y="${100 - value}"
+            width="9"
+            height="${value}"
+            fill="red"
+          />`
+        )}
+    </svg>`(parent)
+
+    data.values = [25, 50]
+    await nextTick()
+
+    const rects = Array.from(parent.querySelectorAll('rect'))
+    expect(rects).toHaveLength(2)
+    expect(rects[1].namespaceURI).toBe('http://www.w3.org/2000/svg')
+    expect(rects[1].getAttribute('height')).toBe('50')
   })
 
   // it('renders sanitized HTML when reading from a variable.', () => {

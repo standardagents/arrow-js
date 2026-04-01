@@ -1,5 +1,5 @@
 import { component, pick } from './component'
-import { html } from './html'
+import { html, svg } from './html'
 import { reactive, watch } from './reactive'
 import { nextTick, onCleanup } from './common'
 
@@ -7,6 +7,7 @@ export {
   component,
   component as c,
   html,
+  svg,
   html as t,
   pick,
   pick as props,

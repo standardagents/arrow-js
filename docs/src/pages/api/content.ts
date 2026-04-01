@@ -415,6 +415,70 @@ html\`&lt;button disabled="\${() =&gt; data.loading ? '' : false}"&gt;Submit&lt;
   `
 }
 
+export function SvgApi() {
+  return html`
+    <section id="svg" class="mb-16">
+      <h2
+        class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4"
+      >
+        svg
+      </h2>
+      <div class="space-y-4 text-zinc-600 dark:text-zinc-400 leading-relaxed">
+        <p>
+          Tagged template literal for SVG child templates. It returns an
+          <code>ArrowTemplate</code> just like <code>html</code>, but parses the
+          template in the SVG namespace.
+        </p>
+
+        <h3
+          class="text-lg font-semibold text-zinc-900 dark:text-white pt-4"
+        >
+          Signature
+        </h3>
+        ${TsCodeBlock(`import type { ArrowExpression, ArrowTemplate } from '@arrow-js/core'
+
+declare function svg(
+  strings: TemplateStringsArray | string[],
+  ...expSlots: ArrowExpression[]
+): ArrowTemplate`)}
+
+        <h3
+          class="text-lg font-semibold text-zinc-900 dark:text-white pt-4"
+        >
+          When to use
+        </h3>
+        <p>
+          Use <code>svg</code> when you need to nest SVG elements like
+          <code>&lt;rect&gt;</code>, <code>&lt;circle&gt;</code>, or
+          <code>&lt;path&gt;</code> as child templates inside an
+          <code>&lt;svg&gt;</code>. A nested <code>html</code> template parses in
+          HTML mode and will not create SVG nodes correctly.
+        </p>
+
+        <div class="code-block">
+          <pre><code class="language-ts">import { html, svg } from '@arrow-js/core'
+
+html\`&lt;svg width="100" height="100" viewBox="0 0 100 100"&gt;
+  \${() =&gt; data.values.map((v, i) =&gt; svg\`&lt;rect
+    x="\${i * 10}"
+    y="\${100 - v}"
+    width="9"
+    height="\${v}"
+    fill="red"
+  /&gt;\`)}
+&lt;/svg&gt;\`</code></pre>
+        </div>
+
+        <p>
+          <code>svg</code> uses the same mounting, reactivity, list rendering,
+          keys, hydration, and cleanup behavior as <code>html</code>. The
+          difference is only the parse namespace.
+        </p>
+      </div>
+    </section>
+  `
+}
+
 export function ComponentApi() {
   return html`
     <section id="component" class="mb-16">
@@ -1352,6 +1416,10 @@ export const HighlightedWatchApi = highlightedSection(
 export const HighlightedHtmlApi = highlightedSection(
   HtmlApi,
   'api-html'
+)
+export const HighlightedSvgApi = highlightedSection(
+  SvgApi,
+  'api-svg'
 )
 export const HighlightedComponentApi = highlightedSection(
   ComponentApi,

@@ -9,6 +9,8 @@ import {
   HighlightedWatchApi,
   HtmlApi,
   HighlightedHtmlApi,
+  SvgApi,
+  HighlightedSvgApi,
   ComponentApi,
   HighlightedComponentApi,
   OnCleanupApi,
@@ -45,6 +47,7 @@ export function ApiPage(options: { highlightCode?: boolean } = {}) {
   const ReactiveApiSection = highlightCode ? HighlightedReactiveApi : ReactiveApi
   const WatchApiSection = highlightCode ? HighlightedWatchApi : WatchApi
   const HtmlApiSection = highlightCode ? HighlightedHtmlApi : HtmlApi
+  const SvgApiSection = highlightCode ? HighlightedSvgApi : SvgApi
   const ComponentApiSection = highlightCode ? HighlightedComponentApi : ComponentApi
   const OnCleanupApiSection = highlightCode ? HighlightedOnCleanupApi : OnCleanupApi
   const PickApiSection = highlightCode ? HighlightedPickApi : PickApi
@@ -82,6 +85,7 @@ export function ApiPage(options: { highlightCode?: boolean } = {}) {
             </div>
             <h2 class="text-sm font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 border-b border-zinc-200 dark:border-zinc-800 pb-2 mb-8 mt-4">@arrow-js/core</h2>
             ${ReactiveApiSection()} ${WatchApiSection()} ${HtmlApiSection()}
+            ${SvgApiSection()}
             ${ComponentApiSection()} ${OnCleanupApiSection()} ${PickApiSection()}
             ${NextTickApiSection()}
 

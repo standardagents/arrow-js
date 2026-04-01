@@ -186,28 +186,44 @@ function getChunkProto(template: InternalTemplate): ChunkProto {
   return (template._p = resolveChunkProto(template._s as string[]))
 }
 
-function resolveChunkProto(rawStrings: TemplateStringsArray | string[]): ChunkProto {
+function resolveChunkProto(
+  rawStrings: TemplateStringsArray | string[],
+  svg?: boolean
+): ChunkProto {
   const doc = document
-  let memoByRef = chunkMemoByRef.get(rawStrings)
+  let memoByRef = svg ? undefined : chunkMemoByRef.get(rawStrings)
   const cachedByRef = memoByRef?.get(doc)
   if (cachedByRef) return cachedByRef
 
   const signature = rawStrings.join(delimiterComment)
+  const cacheKey = svg ? `${delimiter}${signature}` : signature
   let signatureMemo = chunkMemo.get(doc)
   if (!signatureMemo) {
     signatureMemo = {}
     chunkMemo.set(doc, signatureMemo)
   }
-  const cached = signatureMemo[signature]
+  const cached = signatureMemo[cacheKey]
   if (cached) {
-    memoByRef ??= new WeakMap<Document, ChunkProto>()
-    memoByRef.set(doc, cached)
-    chunkMemoByRef.set(rawStrings, memoByRef)
+    if (!svg) {
+      memoByRef ??= new WeakMap<Document, ChunkProto>()
+      memoByRef.set(doc, cached)
+      chunkMemoByRef.set(rawStrings, memoByRef)
+    }
     return cached
   }
 
   const template = document.createElement('template')
-  template.innerHTML = signature
+  if (svg) {
+    template.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">${signature}</svg>`
+    const root = template.content.firstChild as SVGElement | null
+    if (root) {
+      const content = template.content
+      while (root.firstChild) content.appendChild(root.firstChild)
+      content.removeChild(root)
+    }
+  } else {
+    template.innerHTML = signature
+  }
   const paths = createPaths(template.content)
   normalizeNodePlaceholders(template.content)
   const expressions = rawStrings.length - 1
@@ -222,13 +238,15 @@ function resolveChunkProto(rawStrings: TemplateStringsArray | string[]): ChunkPr
   const created = {
     template,
     paths,
-    g: signature,
+    g: cacheKey,
     expressions,
   }
-  memoByRef ??= new WeakMap<Document, ChunkProto>()
-  memoByRef.set(doc, created)
-  chunkMemoByRef.set(rawStrings, memoByRef)
-  signatureMemo[signature] = created
+  if (!svg) {
+    memoByRef ??= new WeakMap<Document, ChunkProto>()
+    memoByRef.set(doc, created)
+    chunkMemoByRef.set(rawStrings, memoByRef)
+  }
+  signatureMemo[cacheKey] = created
   return created
 }
 
@@ -406,6 +424,19 @@ export function html(
   template._s = strings
   template.key = setTemplateKey
   template.id = setTemplateId
+  return template
+}
+
+export function svg(
+  strings: TemplateStringsArray | string[],
+  ...expSlots: ArrowExpression[]
+): ArrowTemplate
+export function svg(
+  strings: TemplateStringsArray | string[],
+  ...expSlots: ArrowExpression[]
+): ArrowTemplate {
+  const template = html(strings, ...expSlots) as InternalTemplate
+  template._p = resolveChunkProto(strings, true)
   return template
 }
 
